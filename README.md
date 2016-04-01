@@ -11,6 +11,8 @@ Suggestions, bugs and exploits should be reported [here](https://wawgame.eu/foru
 
 Issues on this repository should be focused on specific sections of code rather than a general complaint. Issues raised by non-admins should have a link to the relevant thread on the forums. Please post a suggestion or bug report in the forums before making an issue here.
 
+Please claim a todo task in [this thread](https://wawgame.eu/forums/index.php?topic=10905) before starting to code.
+
 ### Overview of contents
 
 * settings.py - General settings file. You'll need to customise this if you're running a local copy of WaW.

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/togglecheckboxes.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css">
+{% endblock %}
+{% load filters %}
+
+{% block title %}Worlds at War - Communiques{% endblock %}
+
+{% block content %}
+
+<center>
+  <h1>Communiques</h1>
+  <p class="bigger"><a href="{% url 'sentcomms' %}">Outbox</a></p>
+</center>
+
+{% if comms != None %}
+
+  <span class="js">
+    <p class="halfline">&nbsp;</p>
+    <center>
+      <a href="" id="tickall">Tick all</a> / <a href="" id="untickall">Untick all</a>
+    </center>
+    <p class="halfline">&nbsp;</p>
+  </span>
+
+  <form action="" method="post">{% csrf_token %}
+
+    {% for item in comms %}
+      <p class="bigger">Sent by <b>{{ item.sender.worldid |worldlink }}</b>:</p>
+      {{ item.content | linebreaks:5 }}
+      <p class="halfline">&nbsp;</p>
+      Received: {{ item.datetime | time:"H:i:s" }} on {{ item.datetime | date:"jS N" }} &nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="{{item.id}}" id="squaretick{{forloop.counter}}" name="commitem" />
+        <label for="squaretick{{forloop.counter}}"></label>
+      </div>
+      <p class="halfline">&nbsp;</p>
+      <hr>
+    {% endfor %}
+
+    <center>
+
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="delete" value="Delete" class="button"/>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="deleteall" value="Delete all comms" class="redbutton"/></p>
+
+      <p class="bigger">Delete by world</p>
+
+      <div class="nopara">
+        {{ deleteform.target.label_tag }} {{ deleteform.target }} &nbsp;
+        <input type="submit" name="deletebyworld" value="Delete" class="button"/>
+      </div>
+
+    </center>
+  </form>
+
+{% else %}
+
+  <p class="center">You have no comms.</p>
+
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,500 @@
+{% extends "policies_base.html" %}
+{% load static from staticfiles %}
+{% block policiesextrahead %}
+  <script type="text/javascript" src="{% static "js/checkbystring.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/militarypolicies.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css">
+  <style>
+    table#shipmov {
+        margin-left: 20%
+    }
+  </style>
+{% endblock %}
+{% load shipbuildtype %}
+
+{% block title %}Fleet Policies{% endblock %}
+
+{% block policies %}
+
+<center>
+
+  <h1>Fleet Policies</h1>
+
+  <p>Current budget: {{ money }} GEU</p>
+
+  <p>Free shipyards: {{ yardsfree }} &nbsp;&nbsp;&nbsp;&nbsp; Shipyards in use: {{ yardsinuse }}</p>
+
+  {% if result != None %}
+    <p class="message">{{ result | safe }}</p>
+  {% endif %}
+
+  {% if rumsodmsg != None %}
+    <p class="rumsoddium">{{ rumsodmsg|safe }}</p>
+  {% endif %}
+
+</center>
+
+<form action="" method="post">{% csrf_token %}
+  <table>
+    <tr>
+      <td class="bigger" colspan="2">Training Drills</td>
+    </tr>
+    <tr>
+      <td colspan="2">Mandate a thorough series of combat and other drills in order to keep your fleet ready and at its peak performance.</td>
+    </tr>
+    <tr>
+      <td style="width:50%">Cost: {{ trainingcost }} GEU </td>
+      <td> <input type="submit" name="trainfleet" value="Train Home Fleet" class="button"/>&nbsp;&nbsp;&nbsp;
+        Current Status: {{ statush }}</td>
+    </tr>
+    <tr>
+      <td style="width:50%">Cost: {{ stagingtrainingcost }} GEU </td>
+      <td> <input type="submit" name="trainstaging" value="Train Staging Area" class="button"/>&nbsp;&nbsp;
+        Current Status: {{ statuss }}</td>
+    </tr>
+    <tr><td colspan="2"><hr></td></tr>
+    <tr>
+      <td class="bigger" colspan="2">Attack Rebels</td>
+    </tr>
+    <tr>
+      <td colspan="2">Set your fleet to hunt down any rebels in your system. You may suffer losses and
+        your fleet will also grow slightly wearier when you confront them!</td>
+    </tr>
+    <tr>
+      <td style="width:50%">Cost: 10 GEU, {{ rebelfuelcost }} warpfuel</td>
+      <td><input type="submit" name="attackrebels" value="Attack" class="button"/></td>
+    </tr>
+  </table>
+  <hr>
+</form>
+
+<center>
+  {% if nopersonalship != None %}
+    <p class="bigger">Construct Flagship</p>
+    Resource costs: 500 GEU, 20 duranium
+    <br>
+    Shipyards: 5 &nbsp;&nbsp;&nbsp;&nbsp; Time: 5 hours
+    <p class="halfline">&nbsp;</p>
+    <span id="shipdesc">
+      A personal fighter is light and nimble, perfect for bloodthirsty or thrill-seeking <br>
+      leaders who like to get up close to the action and inflict some damage.
+    </span>
+    <p class="halfline">&nbsp;</p>
+    <div class="nopara">
+      <form action="" method="post">{% csrf_token %}
+        {{ personalshipform.shiptype.label_tag }} {{ personalshipform.shiptype }} &nbsp;
+        <input type="submit" name="buildflagship" value="Construct" class="button"/>
+      </form>
+    </div>
+  {% else %}
+    <p class="bigger">Scuttle Flagship</p>
+    If you wish to build a different type of flagship, you can scuttle your current one.
+    <p class="halfline">&nbsp;</p>
+    <form action="" method="post" id="scuttleflagship">{% csrf_token %}
+      <input type="submit" name="scuttleflagship" value="Scuttle" class="redbutton"/>
+    </form>
+  {% endif %}
+</center>
+<hr>
+
+{% if displayresearch != None %}
+  <center>
+    <p class="bigger">Research {{ shiptext }}</p>
+    Resource costs: {{ costmsg }}
+    <p class="halfline">&nbsp;</p>
+    <div class="nopara">
+      <form action="" method="post">{% csrf_token %}
+        {{ researchform.researchamount.label_tag }} {{ researchform.researchamount }} &nbsp;
+        <input type="submit" name="research" value="Research" class="button"/>
+      </form>
+    </div>
+  </center>
+  <hr>
+{% endif %}
+
+<form action="" method="post">{% csrf_token %}
+  <center>
+    <p class="bigger">Sector Movement</p>
+    {% if indefwar != None %}
+      <span style="color:red;">Warning: you are in a defensive war!
+        <br>If you send ships from your home region, you will suffer approval and stability losses.</span>
+      <p class="halfline">&nbsp;</p>
+    {% endif %}
+    <table id="shipmov" style="width:50%">
+      <tr>
+        <td align="left">{{ moveform.shiptype.label_tag }}</td>
+        <td align="left">{{ moveform.shiptype }}</td>
+      </tr>
+      <tr>
+        <td align="left">{{ moveform.amount.label_tag }}</td>
+        <td align="left">{{ moveform.amount }}</td>
+      </tr>
+      <tr>
+        <td align="left">{{ moveform.regionfrom.label_tag }}</td>
+        <td align="left">{{ moveform.regionfrom }}</td>
+      </tr>
+      <tr>
+        <td align="left">{{ moveform.regionto.label_tag }}</td>
+        <td align="left">{{ moveform.regionto }}</td>
+      </tr>
+    </table>
+    <p class="halfline">&nbsp;</p>
+    <span id="shipmovecost"></span>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="moveship" value="Warp To Sector" class="button"/>
+  </center>
+</form>
+
+<hr>
+
+<form action="" method="post">{% csrf_token %}
+  <center>
+    <p class="bigger">Mothball Ships</p>
+    {% if indefwar != None %}
+    <span style="color:red;">Warning: you are in a defensive war!
+      <br>If you mothball ships from your home region, you will suffer approval and stability losses.</span>
+    <p class="halfline">&nbsp;</p>
+    {% endif %}
+    {{ mothballform.shiptype.label_tag }}&nbsp;&nbsp;{{ mothballform.shiptype }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    {{ mothballform.amount.label_tag }}&nbsp;&nbsp;{{ mothballform.amount }}
+    <p class="halfline">&nbsp;</p>
+    <span id="mothballcost"></span>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="plusmothball" value="Mothball" class="button"/>&nbsp;&nbsp;
+    <input type="submit" name="minusmothball" value="Reactivate" class="button"/>
+  </center>
+</form>
+
+<hr>
+
+<center>
+  <form action="" method="post">{% csrf_token %}
+    <p class="bigger">Staging Area</p>
+    {{ stagingform.shiptype.label_tag }}&nbsp;&nbsp;{{ stagingform.shiptype }}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    {{ stagingform.amount.label_tag }}&nbsp;&nbsp;{{ stagingform.amount }}
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="plusstage" value="Stage" class="button"/>&nbsp;&nbsp;
+    <input type="submit" name="minusstage" value="Unstage" class="button"/>
+  </form>
+  <p class="halfline">&nbsp;</p>
+  <div class="nopara">
+    <form action="" method="post" id="plusstage" style="display:inline;">{% csrf_token %}
+      <input type="submit" name="plusstageall" value="Stage All" class="redbutton"/>&nbsp;&nbsp;
+    </form>
+    <form action="" method="post" id="minusstage" style="display:inline;">{% csrf_token %}
+      <input type="submit" name="minusstageall" value="Unstage All" class="redbutton"/>
+    </form>
+  </div>
+</center>
+
+<hr>
+
+<form action="" method="post">{% csrf_token %}
+  <center>
+    <p class="bigger">Staging Preferences</p>
+    <table id="checkboxtable" style="width:85%">
+      <tr>
+        <td colspan="2" align="center"><b>Produce ships to:</b></td>
+        <td rowspan="2">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td colspan="2" align="center"><b>Send ships from:</b></td>
+        <td rowspan="2">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td colspan="2" align="center"><b>Receive ships to:</b></td>
+      </tr>
+      <tr>
+      <td align="center">
+      Home: &nbsp;&nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="prodhome" id="prodhome" name="stagingpref" />
+        <label for="prodhome"></label>
+      </div>
+      </td>
+      <td align="center">
+      Staging: &nbsp;&nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="prodstaging" id="prodstaging" name="stagingpref" />
+        <label for="prodstaging"></label>
+      </div>
+      </td>
+      <td align="center">
+      Home: &nbsp;&nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="sendhome" id="sendhome" name="stagingpref" />
+        <label for="sendhome"></label>
+      </div>
+      </td>
+      <td align="center">
+      Staging: &nbsp;&nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="sendstaging" id="sendstaging" name="stagingpref" />
+        <label for="sendstaging"></label>
+      </div>
+      </td>
+      <td align="center">
+      Home: &nbsp;&nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="receivehome" id="receivehome" name="stagingpref" />
+        <label for="receivehome"></label>
+      </div>
+      </td>
+      <td align="center">
+      Staging: &nbsp;&nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="receivestaging" id="receivestaging" name="stagingpref" />
+        <label for="receivestaging"></label>
+      </div>
+      </td>
+      <tr>
+    </table>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="setstagingprefs" value="Submit" class="button"/>
+  </center>
+</form>
+
+<hr>
+
+<h2>Construction</h2>
+<table>
+  <form action="" method="post">{% csrf_token %}
+    <tr>
+      <td class="bigger">Shipyard</td>
+    </tr>
+    <tr>
+      <td style="width:25%">Cost: 500 GEU </td>
+      <td style="width:55%">Resources: 5 Duranium </td>
+      <td></td>
+      <td><input type="submit" name="buildshipyard" value="Shipyard" class="button"/></td>
+    </tr>
+  </form>
+  <tr><td colspan="4"><hr></td></tr>
+</table>
+
+<table>
+  <form action="" method="post">{% csrf_token %}
+    <tr>
+      <td class="bigger">Freighter</td>
+    </tr>
+    <tr>
+      <td style="width:25%">Cost: 100 GEU </td>
+      <td style="width:25%">Resources: 5 Duranium </td>
+    </tr>
+    <tr>
+      <td style="width:25%"> Shipyards: 2 </td>
+      <td style="width:50%"> Time: 2 hours </td>
+      <td>
+        <input type="text" name="amountfre" value="1" size="3" style="font-family:monospace">&nbsp;
+        <input type="submit" name="buildfreighter" value="Freighter"  class="button"/>
+      </td>
+    </tr>
+  </form>
+  <tr><td colspan="4"><hr></td></tr>
+</table>
+
+<table>
+  <form action="" method="post">{% csrf_token %}
+    <tr>
+      <td class="bigger">Fighter</td>
+    </tr>
+    <tr>
+      <td style="width:25%">{{ datafig.0 }}</td>
+      <td colspan="2">{{ datafig.1 }}</td>
+    </tr>
+    <tr>
+      <td style="width:25%">{{ datafig.2 }}</td>
+      <td style="width:25%">{{ datafig.3 }}</td>
+      <td style="width:25%">{{ datafig.4 }}</td>
+      <td>{% shipbuildtype 1 buildpref %}</td>
+    </tr>
+  </form>
+
+  <tr><td colspan="4"><hr></td></tr>
+
+  {% if displaybuilds.1 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Corvette</td>
+      </tr>
+      <tr>
+        <td>{{ datacor.0 }}</td>
+        <td colspan="2">{{ datacor.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ datacor.2 }}</td>
+        <td>{{ datacor.3 }}</td>
+        <td>{{ datacor.4 }}</td>
+        <td>{% shipbuildtype 2 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if displaybuilds.2 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Light Cruiser</td>
+      </tr>
+      <tr>
+        <td>{{ datalcr.0 }}</td>
+        <td colspan="2">{{ datalcr.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ datalcr.2 }}</td>
+        <td>{{ datalcr.3 }}</td>
+        <td>{{ datalcr.4 }}</td>
+        <td>{% shipbuildtype 3 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if displaybuilds.3 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Destroyer</td>
+      </tr>
+      <tr>
+        <td>{{ datades.0 }}</td>
+        <td colspan="2">{{ datades.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ datades.2 }}</td>
+        <td>{{ datades.3 }}</td>
+        <td>{{ datades.4 }}</td>
+        <td>{% shipbuildtype 4 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if displaybuilds.4 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Frigate</td>
+      </tr>
+      <tr>
+        <td>{{ datafri.0 }}</td>
+        <td colspan="2">{{ datafri.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ datafri.2 }}</td>
+        <td>{{ datafri.3 }}</td>
+        <td>{{ datafri.4 }}</td>
+        <td>{% shipbuildtype 5 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if displaybuilds.5 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Heavy Cruiser</td>
+      </tr>
+      <tr>
+        <td>{{ datahcr.0 }}</td>
+        <td colspan="2">{{ datahcr.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ datahcr.2 }}</td>
+        <td>{{ datahcr.3 }}</td>
+        <td>{{ datahcr.4 }}</td>
+        <td>{% shipbuildtype 6 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if displaybuilds.6 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Battlecruiser</td>
+      </tr>
+      <tr>
+        <td>{{ databcr.0 }}</td>
+        <td colspan="2">{{ databcr.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ databcr.2 }}</td>
+        <td>{{ databcr.3 }}</td>
+        <td>{{ databcr.4 }}</td>
+        <td>{% shipbuildtype 7 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if displaybuilds.7 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Battleship</td>
+      </tr>
+      <tr>
+        <td>{{ databsh.0 }}</td>
+        <td colspan="2">{{ databsh.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ databsh.2 }}</td>
+        <td>{{ databsh.3 }}</td>
+        <td>{{ databsh.4 }}</td>
+        <td>{% shipbuildtype 8 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if displaybuilds.8 == True %}
+    <form action="" method="post">{% csrf_token %}
+      <tr>
+        <td class="bigger">Dreadnought</td>
+      </tr>
+      <tr>
+        <td>{{ datadre.0 }}</td>
+        <td colspan="2">{{ datadre.1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ datadre.2 }}</td>
+        <td>{{ datadre.3 }}</td>
+        <td>{{ datadre.4 }}</td>
+        <td>{% shipbuildtype 9 buildpref %}</td>
+      </tr>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+  {% if buildpref == 'multi' %}
+    <form action="" method="post" id="buildallships">{% csrf_token %}
+      <tr>
+        <td colspan="3"></td>
+        <td><input type="submit" name="buildships" value="Build all ships" class="button"/></td>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+</table>
+
+{% if rumpolicy != None %}
+
+  <hr>
+
+  <table style="border: 2px solid green;">
+    <tr>
+      <td class="bigger" colspan="3">Rumsoddium Military Miracle</td>
+    </tr>
+    <tr>
+      <td colspan="3">Upon collecting the 4 existing pieces of rumsoddium, your scientists find it has amazing - almost miraculous - properties! They believe that if you arrange the pieces in a square and bombard them with X-rays at a frequency of exactly Hz, while a male and a female, both virgins, chant an exact world name in the room, an economic calamity will occur to the world named through means too horrible to imagine.</td>
+    </tr>
+    <tr>
+      <form action="" method="post">{% csrf_token %}
+        <td style="width:30%">Cost: 4 pieces of rumsoddium </td>
+        <td align="right" style="width:20%" >
+          <input type="text" name="targetname" size="10" value=" World Name">&nbsp;&nbsp;
+        </td>
+        <td align="left"><input type="submit" name="rumsodmil" value="Enact Ritual" class="button"/></td>
+      </form>
+    </tr>
+  </table>
+{% endif %}
+
+<span style="display:none;" id="prefs">{{ prefs }}</span>
+
+{% endblock %}
+

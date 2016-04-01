@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/togglecheckboxes.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css">
+  <style>
+    td {
+      padding-left: 5px;
+      padding-right: 5px;
+    }
+  </style>
+{% endblock %}
+
+{% block title %}Worlds at War - World News{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>World News</h1>
+
+  <span class="js">
+    <p class="halfline">&nbsp;</p>
+    <center>
+      <a href="" id="tickall">Tick all</a> / <a href="" id="untickall">Untick all</a>
+    </center>
+    <p class="halfline">&nbsp;</p>
+  </span>
+
+  {% if message != None %}
+    <p class="message">{{ message | safe}}</p>
+  {% endif %}
+
+</center>
+
+{% if actionnews != None %}
+  {% for item in actionnews %}
+    <form action="" method="post">{% csrf_token %}
+      {{ item.content | safe }}
+      <input type='hidden' name='taskid' value='{{ item.id }}'><br>
+      Received: {{ item.datetime | time:"H:i:s" }} on {{ item.datetime | date:"jS N" }}
+    </form>
+    <hr>
+    <p class="halfline">&nbsp;</p>
+  {% endfor %}
+{% endif %}
+
+<p></p><p></p>
+
+{% if news != None %}
+  <form action="" method="post">{% csrf_token %}
+    {% for item in news %}
+      {{ item.content | safe }}<br>
+      <p class="halfline">&nbsp;</p>
+      Received: {{ item.datetime | time:"H:i:s" }} on {{ item.datetime | date:"jS N" }} &nbsp;&nbsp;
+      <div class="squaretick">
+      	<input type="checkbox" value="{{item.id}}" id="squaretick{{forloop.counter}}" name="newsitem" />
+      	<label for="squaretick{{forloop.counter}}"></label>
+      </div>
+      <hr>
+      <p class="halfline">&nbsp;</p>
+    {% endfor %}
+    <center>
+      <input type="submit" name="delete" value="Delete" class="button"/>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="deleteall" value="Delete all news" class="redbutton"/>
+    </center>
+  </form>
+{% endif %}
+
+{% if news == None %}
+  {% if actionnews == None %}
+    {% if message == None %}
+      <p class="center">You have no news.</p>
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+{% endblock %}
+
+
+
+

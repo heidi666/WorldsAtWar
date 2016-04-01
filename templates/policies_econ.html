@@ -1,0 +1,213 @@
+{% extends "policies_base.html" %}
+{% block title %}Worlds at War - Economic Policies{% endblock %}
+
+{% block policies %}
+{% load resourcemine %}
+
+<center>
+
+  <h1>Economic Policies</h1>
+
+  <p>Current budget: {{ world.budget }} GEU</p>
+
+  {% if result != None %}
+    <p class="message">{{ result|safe }}</p>
+  {% endif %}
+
+  {% if rumsodmsg != None %}
+    <p class="rumsoddium">{{ rumsodmsg|safe }}</p>
+  {% endif %}
+
+</center>
+
+<form action="" method="post">{% csrf_token %}
+
+  <table>
+
+    <tr>
+      {% resourcemine world.resource %}
+    </tr><tr>
+      <td style="width:50%">Cost: {{ rescost }} GEU </td>
+      <td align="left"><input type="submit" name="buildresource" value="Build" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Industrial Program</td>
+    </tr><tr>
+      <td colspan="2">Allocate a portion of your budget to an ongoing industrial program.
+          This will provide more or less guaranteed growth over turn change.</td>
+    </tr><tr>
+      <td>Cost per growth: {{ indcost }}</td><td>Program budget cap: {{ indcap }}</td>
+    </tr><tr>
+      <td>Allocated budget:&nbsp;&nbsp;
+          <input type="text" name="indprogramval" value="{{ world.industrialprogram }}" size="5"
+          style="font-family:monospace">&nbsp;GEU
+      </td>
+      <td align="left"> <input type="submit" name="indprogram" value="Allocate" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    {% if shownoob != None %}
+    <tr>
+      <td class="bigger" colspan="2">Cheap Goods</td>
+    </tr><tr>
+      <td colspan="2">Flood your domestic market with cut-price stuff. This may be used to improve growth, but it won't be useful beyond a higher GDP.</td>
+    </tr><tr>
+      <td>Cost: 70 GEU </td>
+      <td align="left"><input type="submit" name="noobgrowthpolicy" value="Flood" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+    {% endif %}
+
+    <tr>
+      <td class="bigger" colspan="2">Buy Bonds</td>
+    </tr><tr>
+      <td colspan="2">Direct your central bank to buy securities off the free market. This will increase the money supply, and stimulate growth.</td>
+    </tr><tr>
+      <td style="width:50%">Cost: 100 GEU</td>
+      <td align="left"><input type="submit" name="buybonds" value="Buy" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Improve Predictive Model</td>
+    </tr><tr>
+      <td colspan="2">Improve the computer model used to predict the movements of your centrally planned economy.</td>
+    </tr><tr>
+      <td>Cost: 100 GEU </td>
+      <td align="left"><input type="submit" name="impmodel" value="Improve" class="button"/>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Quantitative Easing</td>
+    </tr><tr>
+      <td colspan="2">Need to stimulate the economy? Simply print more money! This policy is unsustainable however, and will cost you stability.</td>
+    </tr><tr>
+      <td style="width:50%">Cost: 50 GEU, loss of stability </td>
+      <td align="left"><input type="submit" name="qeasing" value="Print" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Forced Labour</td>
+    </tr><tr>
+      <td colspan="2">You can set your dissidents to work, with a high chance of increasing growth, but the rest of the population will not be happy. Only available to autocracies.</td>
+    </tr><tr>
+      <td>Cost: Decrease in contentment and stability. </td>
+      <td align="left"><input type="submit" name="forcedlabour" value="Force" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Nationalise Businesses</td>
+    </tr><tr>
+      <td colspan="2">You can assume direct control of many businesses and run them yourself for the benefit of the people. This will move you towards central planning, but stability will suffer due to large-scale reorganisation.</td>
+    </tr><tr>
+      <td> Cost: Loss of stability. </td>
+      <td align="left"><input type="submit" name="nationalise" value="Nationalise" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Privatise Services</td>
+    </tr><tr>
+      <td colspan="2">Your government-owned services are too bureaucratic and inefficient! Selling them off will encourage competition. This will move you towards a free market, but stability will suffer due to large-scale reorganisation.</td>
+    </tr><tr>
+      <td> Cost: Loss of stability. </td>
+      <td align="left"><input type="submit" name="privatise" value="Privatise" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Set up Fuel Refinery</td>
+    </tr><tr>
+      <td colspan="2">Your fleet needs fuel to operate. If you set up a fuel refinery, it will absorb the solar wind and provide you with a clean source of energy.</td>
+    </tr><tr>
+      <td>Cost: {{warpfuelcost}} GEU </td>
+      <td align="left"><input type="submit" name="buildfuelrefinery" value="Set Up" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Prospect for Duranium</td>
+    </tr><tr>
+      <td colspan="2">Duranium is a fairly common material for ship hulls. Set up a mining expedition in your system, and if you find a duranium-rich asteroid you can set up an extractor on it.</td>
+    </tr><tr>
+      <td>Cost: {{duraniumcost}} GEU </td>
+      <td align="left"><input type="submit" name="prospectduranium" value="Prospect D" class="button"/></td>
+    </tr>
+
+    {% if showtrit != None %}
+      <tr><td colspan="2"><hr></td></tr>
+
+      <tr>
+        <td class="bigger" colspan="2">Prospect for Tritanium</td>
+      </tr><tr>
+        <td colspan="2">Tritanium is a key element in high-performance hulls, but is rarer than duranium. Set up a deeper mining expedition in your system, and if you find a tritanium-rich asteroid you can set up an extractor on it.</td>
+      </tr><tr>
+        <td>Cost: {{tritaniumcost}} GEU </td>
+        <td align="left"><input type="submit" name="prospecttritanium" value="Prospect T" class="button"/></td>
+      </tr>
+
+      {% if showadam != None %}
+        <tr><td colspan="2"><hr></td></tr>
+
+        <tr>
+          <td class="bigger" colspan="2">Prospect for Adamantium</td>
+        </tr><tr>
+          <td colspan="2">One of the hardest (and rarest) materials known, only the most fearsome of ships will have adamantium-reinforced hulls. Set up a mining expedition into the deepest reaches of your system, and if you should find an adamantium-rich asteroid you can set up an extractor on it.</td>
+        </tr><tr>
+          <td>Cost: {{adamantiumcost}} GEU </td>
+          <td align="left"><input type="submit" name="prospectadamantium" value="Prospect A" class="button"/></td>
+        </tr>
+      {% endif %}
+
+    {% endif %}
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Launch Salvage Mission</td>
+    </tr><tr>
+      <td colspan="2">Battles around your world leave all sorts of debris floating in the emptiness of space. A salvage mission will attempt to collect some of the debris and bring them back to your world as usable materials. Cost varies with the amount of salvage to collect.</td>
+    </tr><tr>
+      <td colspan="2">Current salvage: {{salvagetext}}</td>
+    </tr><tr>
+      <td>Cost: {{salvagecost}} GEU </td>
+      <td align="left"><input type="submit" name="salvagemission" value="Salvage" class="button"/></td>
+    </tr>
+  </table>
+
+  {% if rumpolicy != None %}
+
+    <hr>
+
+    <table style="border: 2px solid green;">
+      <tr>
+        <td class="bigger" colspan="2">Rumsoddium Economic Miracle</td>
+      </tr>
+      <tr>
+        <td colspan="2">Upon collecting the 4 existing pieces of rumsoddium, your scientists find it has amazing - almost miraculous - properties! They believe that if you arrange the pieces in a square and bombard them with radio waves at a frequency of exactly Hz, while two dancers perform a waltz in the room, a mystical wave will sweep the world, and in a flurry of activity your world's GDP and resources will be doubled!</td>
+      </tr>
+      <tr>
+        <td style="width:50%">Cost: 4 pieces of rumsoddium </td>
+        <td align="left"><input type="submit" name="rumsodecon" value="Enact Ritual" class="button"/></td>
+      </tr>
+    </table>
+  {% endif %}
+
+</form>
+
+{% endblock %}

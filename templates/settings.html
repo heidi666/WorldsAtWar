@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/length.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/checkbystring.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/textcheck.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/settings.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css">
+  <style>
+    table {
+      table-layout: fixed;
+    }
+    td {
+      text-align: center;
+    }
+    table#checkboxtable td {
+        text-align: center;
+        width:25%;
+        padding-top: 5px;
+        padding-left: 15px;
+        padding-right: 15px;
+        padding-bottom: 5px;
+    }
+  </style>
+{% endblock %}
+
+{% block title %}Worlds at War - Settings{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>Settings</h1>
+
+  {% if message != None %}
+    <p class="message">{{ message }}</p>
+  {% endif %}
+
+  <p>Your world: <a href="{% url 'stats_ind' world.worldid %}">https://www.wawgame.eu/world/{{ world.worldid }}</a><p>
+
+  <p><a href="{% url 'auth_password_change' %}">Click here to change your password</a></p>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">World Description</p>
+  <span style="font-size:0.8em">Insert <b>[br]</b> for up to 5 line-breaks in your description.</span>
+  <p class="halfline">&nbsp;</p>
+  <form action="" method="post">{% csrf_token %}
+    <textarea name="description" id="description" rows="4" cols="50" class="countable textcheck"
+      maxlength="{% if world.donator == True %}500{% else %}300{% endif %}">{{ world.world_desc }}</textarea>
+    <p class="vsmallline">&nbsp;</p>
+    <span id="descriptionstatus"></span>
+    <span id="textcheckstatus"></span>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="editdesc" value="Edit Description" class="button"/></p>
+  </form>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">Fleet Names</p>
+
+  <form action="" method="post">{% csrf_token %}
+    <table style="width:60%">
+      <tr>
+        <td>
+          A fleet:
+          <input type="text" name="fleetname" value="{{world.fleetname_inA}}" id="Aname" class="countable" maxlength="15">
+        </td>
+        <td>
+          B fleet:
+          <input type="text" name="fleetname" value="{{world.fleetname_inB}}" id="Bname" class="countable" maxlength="15">
+        </td>
+      </tr>
+      <tr>
+        <td><span id="Anamestatus">&nbsp;</span></td><td><span id="Bnamestatus">&nbsp;</span></td>
+      </tr>
+      <tr>
+        <td>
+          C fleet:
+          <input type="text" name="fleetname" value="{{world.fleetname_inC}}" id="Cname" class="countable" maxlength="15">
+        </td>
+        <td>
+          D fleet:
+          <input type="text" name="fleetname" value="{{world.fleetname_inD}}" id="Dname" class="countable" maxlength="15">
+        </td>
+      </tr>
+      <tr>
+        <td><span id="Cnamestatus">&nbsp;</span></td><td><span id="Dnamestatus">&nbsp;</span></td>
+      </tr>
+      <tr>
+        <td>
+          H fleet:
+          <input type="text" name="fleetname" value="{{world.fleetname_inH}}" id="Hname" class="countable" maxlength="15">
+        </td>
+        <td>
+          S fleet:
+          <input type="text" name="fleetname" value="{{world.fleetname_inS}}" id="Sname" class="countable" maxlength="15">
+        </td>
+      </tr>
+      <tr>
+        <td><span id="Hnamestatus">&nbsp;</span></td><td><span id="Snamestatus">&nbsp;</span></td>
+      </tr>
+      <tr>
+        <td colspan="2"><input type="submit" name="setfleetnames" value="Set Fleet Names" class="button"/></td>
+      </tr>
+    </table>
+  </form>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">Flagship Name</p>
+
+  <form action="" method="post">{% csrf_token %}
+    <input type="text" name="flagshipname" value="{{world.flagshipname}}" id="flagshipname" class="countable" maxlength="30">  &nbsp;&nbsp;
+    <input type="submit" name="setflagshipname" value="Set Flagship Name" class="button"/>
+    <p class="halfline">&nbsp;</p>
+    <span id="flagshipnamestatus">&nbsp;</span>
+  </form>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">Comm display preference</p>
+
+  <div class="nopara">
+    <form action="" method="post" id="sortform">{% csrf_token %}
+      {{ commform.sortby.label_tag }} {{ commform.sortby }}
+      <noscript><input type="submit" name="selectsort" value="Select" class="button"/></noscript>
+    </form>
+  </div>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">Policy button preference</p>
+
+  <div class="nopara">
+    <form action="" method="post" id="policyform">{% csrf_token %}
+      {{ policyform.policychoice.label_tag }} {{ policyform.policychoice }}
+      <noscript><input type="submit" name="selectpolicy" value="Select" class="button"/></noscript>
+    </form>
+  </div>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">Ship build preference</p>
+
+  <div class="nopara">
+    <form action="" method="post" id="shipform">{% csrf_token %}
+      {{ shipform.buildchoice.label_tag }} {{ shipform.buildchoice }}
+      <noscript><input type="submit" name="selectship" value="Select" class="button"/></noscript>
+    </form>
+  </div>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">Flag display preference</p>
+
+  <div class="nopara">
+    <form action="" method="post" id="flagform">{% csrf_token %}
+      {{ flagdisplayform.flagpref.label_tag }} {{ flagdisplayform.flagpref }}
+      <noscript><input type="submit" name="selectflagpref" value="Select" class="button"/></noscript>
+    </form>
+  </div>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">World list preference</p>
+  Recommended: 20 per page with flags, 40 without
+  <p class="halfline">&nbsp;</p>
+  <div class="nopara">
+    <form action="" method="post">{% csrf_token %}
+      Worlds per list page:
+      <input type="text" name="worlddisplayno" value="{{ world.worlddisplayno }}" size="3" style="font-family:monospace">
+      <input type="submit" name="selectworldno" value="Select" class="button"/>
+    </form>
+  </div>
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">World section preference</p>
+  Tick the boxes for the sections you wish to remain open.
+  <p class="halfline">&nbsp;</p>
+  <form action="" method="post">{% csrf_token %}
+    <table id="checkboxtable" style="width:80%">
+      <tr>
+        <td>
+        Domestic: &nbsp;&nbsp;&nbsp;&nbsp;
+        <div class="squaretick">
+          <input type="checkbox" value="domestic" id="domestic" name="worldpref" />
+          <label for="domestic"></label>
+        </div>
+        </td>
+        <td>
+          Economic: &nbsp;&nbsp;&nbsp;&nbsp;
+          <div class="squaretick">
+            <input type="checkbox" value="economic" id="economic" name="worldpref" />
+            <label for="economic"></label>
+          </div>
+        </td>
+        <td>
+          Diplomacy: &nbsp;&nbsp;&nbsp;&nbsp;
+          <div class="squaretick">
+            <input type="checkbox" value="diplomacy" id="diplomacy" name="worldpref" />
+            <label for="diplomacy"></label>
+          </div>
+        </td>
+        <td>
+          Military: &nbsp;&nbsp;&nbsp;&nbsp;
+          <div class="squaretick">
+            <input type="checkbox" value="military" id="military" name="worldpref" />
+            <label for="military"></label>
+          </div>
+        </td>
+      <tr>
+    </table>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="setworldprefs" value="Submit" class="button"/>
+  </form>
+
+  {% if world.donator == True %}
+
+    <p class="halfline">&nbsp;</p>
+
+    <p class="bigger">Donator Options</p>
+
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="customflag" value="{{world.donatorflag}}" size="50">  &nbsp;&nbsp;
+      <input type="submit" name="setcustomflag" value="Set flag" class="button"/>
+    </form>
+
+    <p class="halfline">&nbsp;</p>
+
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="customavatar" value="{{world.donatoravatar}}" size="50">  &nbsp;&nbsp;
+      <input type="submit" name="setcustomavatar" value="Set avatar" class="button"/>
+    </form>
+
+    <br>
+
+    Set a custom anthem (the bit after watch?v=)
+    <p class="halfline">&nbsp;</p>
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="customanthem" value="{{world.donatoranthem}}" size="25">  &nbsp;&nbsp;
+      <input type="submit" name="setcustomanthem" value="Set anthem" class="button"/>
+    </form>
+
+    <br>
+
+    Set a world descriptor (instead of 'The World of')
+    <p class="halfline">&nbsp;</p>
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="customdescriptor" value="{{world.world_descriptor}}" size="30" id="customdescriptor" class="countable" maxlength="100">
+      &nbsp;&nbsp; <input type="submit" name="setcustomdescriptor" value="Set descriptor" class="button"/>
+      <br><span id="customdescriptorstatus"></span>
+    </form>
+
+    <br>
+
+    Set a custom leader title
+    <p class="halfline">&nbsp;</p>
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="customtitle" value="{{world.leadertitle}}" size="30" id="customtitle" class="countable" maxlength="100">
+      &nbsp;&nbsp; <input type="submit" name="setcustomtitle" value="Set title" class="button"/>
+      <br><span id="customtitlestatus"></span>
+    </form>
+
+    <br>
+
+    Set a custom flagship picture
+    <p class="halfline">&nbsp;</p>
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="customps" value="{{world.donatorflagship}}" size="30" id="customps" class="countable" maxlength="100">
+      &nbsp;&nbsp; <input type="submit" name="setcustomps" value="Set picture" class="button"/>
+      <br><span id="custompsstatus"></span>
+    </form>
+
+  {% else %}
+
+  <p class="halfline">&nbsp;</p>
+  <p class="bigger">Flagship Picture</p>
+
+  {% if world.flagshiptype == 0 %}
+
+    You don't currently own a flagship!
+
+  {% else %}
+
+    Ship Type: {{ world.displaypship }}
+    <p class="halfline">&nbsp;</p>
+
+    <form action="" method="post">{% csrf_token %}
+      <table style="width:50%">
+        <tr>
+          <td style="width:40%"><b>{{ psform.pspic.label_tag }}</b> <br> {{ psform.pspic }}</td>
+          <td rowspan="2" style="width:60%">
+            <div class="selectimage" id="selectps">
+              <img src="{% static "settings/ps/"|add:world.flagshippicture|add:".gif" %}" class="selectdisplay">
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td><input type="submit" name="selectps" value="Select" class="button"></td>
+        </tr>
+      </table>
+    </form>
+
+  {% endif %}
+
+    <p class="bigger">Flag/Avatar Selection</p>
+
+    <form action="" method="post">{% csrf_token %}
+      <table style="width:95%">
+        <tr>
+          <td style="width:20%"><b>{{ flagform.flag.label_tag }}</b> <br> {{ flagform.flag }}</td>
+          <td rowspan="2" style="width:30%">
+            <div id="selectflag">
+              <img src="{% static "settings/avnf/"|add:world.flag|add:".gif" %}" alt="{{ world.flag }}" class="selectdisplay">
+            </div>
+          </td>
+          <td style="width:20%"><b>{{ avatarform.avatar.label_tag }}</b> <br> {{ avatarform.avatar }}</td>
+          <td rowspan="2" style="width:30%">
+            <div id="selectavatar">
+              <img src="{% static "settings/avnf/"|add:world.avatar|add:".gif" %}" alt="{{ world.avatar }}" class="selectdisplay">
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td><input type="submit" name="selectflag" value="Select" class="button"></td>
+          <td><input type="submit" name="selectavatar" value="Select" class="button"></td>
+        </tr>
+      </table>
+    </form>
+
+  {% endif %}
+
+  <p class="halfline">&nbsp;</p>
+
+  <p class="bigger">Background Selection</p>
+
+  <form action="" method="post">{% csrf_token %}
+    <table style="width:50%">
+      <tr>
+        <td style="width:40%"><b>{{ bgform.background.label_tag }}</b> <br> {{ bgform.background }}</td>
+        <td rowspan="2" style="width:60%">
+          <div class="selectimage" id="selectbg">
+            <img src="{% static "settings/bg/"|add:test|add:".gif" %}" alt="{{ world.backgroundpref }}" class="selectdisplay">
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td><input type="submit" name="selectbackground" value="Select" class="button"></td>
+      </tr>
+    </table>
+  </form>
+
+</center>
+
+<span style="display:none;" id="prefs">{{ world.statsopenprefs }}</span>
+
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+
+{% block title %}Worlds at War - Banned!{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <img src="{% static "wawmembers/banned.png" %}" alt="Banned">
+
+  <p class="halfline">&nbsp;</p>
+
+  <span class="bigger">This address has been banned for the following reason: {{ reason }}</span>
+
+</center>
+
+{% endblock %}

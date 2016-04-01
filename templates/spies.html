@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% load nextspyaction %}
+{% load filters %}
+
+{% block title %}Worlds at War - Intelligence Agency{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>Intelligence Agency</h1>
+
+  <p><a href="{% url 'main' %}">Return</a></p>
+
+  {% if spieslist %}
+
+    {% for spy in spieslist %}
+
+      <p class="bigger" style="font-weight:bold;">{{ spy.name}}</p>
+
+      Location: {{ spy.location.worldid |worldlink }}
+      <p class="halfline">&nbsp;</p>
+      {% nextspyaction spy %}
+
+      <p class="halfline">&nbsp;</p>
+
+      <table>
+        <tr>
+          <td align="right">Infiltration&nbsp;&nbsp;&nbsp;</td>
+          <td style="width:60%">{% filter repeat:spy.infiltration %}<img src="{% static "wawmembers/star.gif" %}" alt="star">{% endfilter %}</td>
+        </tr>
+        <tr>
+          <td align="right">Propaganda&nbsp;&nbsp;&nbsp;</td>
+          <td>{% filter repeat:spy.propaganda %}<img src="{% static "wawmembers/star.gif" %}" alt="star">{% endfilter %}</td>
+        </tr>
+        <tr>
+          <td align="right">Arms running&nbsp;&nbsp;&nbsp;</td>
+          <td>{% filter repeat:spy.gunrunning %}<img src="{% static "wawmembers/star.gif" %}" alt="star">{% endfilter %}</td>
+        </tr>
+        <tr>
+          <td align="right">Intelligence&nbsp;&nbsp;&nbsp;</td>
+          <td>{% filter repeat:spy.intelligence %}<img src="{% static "wawmembers/star.gif" %}" alt="star">{% endfilter %}</td>
+        </tr>
+        <tr>
+          <td align="right">Sabotage&nbsp;&nbsp;&nbsp;</td>
+          <td>{% filter repeat:spy.sabotage %}<img src="{% static "wawmembers/star.gif" %}" alt="star">{% endfilter %}</td>
+        </tr>
+        <tr>
+          <td align="right">Counterintelligence&nbsp;&nbsp;&nbsp;</td>
+          <td>{% filter repeat:spy.counterint %}<img src="{% static "wawmembers/star.gif" %}" alt="star">{% endfilter %}</td>
+        </tr>
+        <tr>
+          <td align="right">Entrenchment&nbsp;&nbsp;&nbsp;</td>
+          <td>{% filter repeat:spy.timespent %}<img src="{% static "wawmembers/star.gif" %}" alt="star">{% endfilter %}</td>
+        </tr>
+      </table>
+
+    {% endfor %}
+
+  {% else %}
+
+    <p>Your intelligence agency has no spies.</p>
+
+  {% endif %}
+
+</center>
+
+{% endblock %}

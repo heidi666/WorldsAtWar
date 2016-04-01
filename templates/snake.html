@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+{% load static from staticfiles %}
+<html>
+<head>
+  <title>Worlds at War - Snake</title>
+  <link rel="shortcut icon" href="{% static "wawmembers/favicon.ico" %}" />
+  <link rel="stylesheet" type="text/css" href="{% static "css/snake.css" %}" />
+</head>
+
+<body>
+  <div id="game-area" tabindex="0">
+  </div>
+  <script type="text/javascript" src="{% static "js/snake.js" %}"></script>
+  <script type="text/javascript">
+  var mySnakeBoard = new SNAKE.Board(  {
+                                          boardContainer: "game-area",
+                                          fullScreen: true
+                                      });
+  </script>
+</body>
+</html>

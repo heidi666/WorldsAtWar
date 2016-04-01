@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/length.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/barlinks.css" %}" type="text/css">
+  <style>
+  h2 {
+    margin-bottom: 10px;
+  }
+  </style>
+{% endblock %}
+{% load filters %}
+
+{% block title %}Worlds at War - Galactic News{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <a name="top"></a>
+  <div class="toplinks">
+    <center>
+      <ul>
+        <li><a href="#lottery">Lottery</a></li>
+        <li><a href="#wars">Wars</a></li>
+        <li><a href="#announcements">Announcements</a></li>
+        <li><a href="#stats">Stats</a></li>
+      </ul>
+    </center>
+  </div>
+
+  {% if message != None %}
+    <p class="message">{{ message }}</p>
+  {% endif %}
+
+  {% if rsamount %}
+    <p class="halfline">&nbsp;</p>
+    <div style="width:90%;border:1px solid green;padding-bottom:10px">
+      <h3>{{ rsamount }} prized pieces of rumsoddium!</h3>
+      <table style="width:90%">
+        <tr>
+          {% for world in rsowners %}
+            <td align="center" style="width:25%;">{{ world.worldid | worldlink }}</td>
+          {% endfor %}
+        </tr>
+      </table>
+      <p class="bigger">Wars fought over rumsoddium: {{ rumsoddium }}</p>
+    </div>
+  {% endif %}
+
+  <h2 id="lottery">Galactic Lottery</h2>
+
+  <p class="bigger">Current Jackpot: {{ jackpot }} GEU</p>
+
+  {% if winner != None %}
+    <p class="bigger">Previous winner: <i>{{ winner.worldid |worldlink }}</i> with a prize pot of {{ prevprize }} GEU</p>
+  {% endif %}
+
+  {% if displayform != None %}
+    <p class="bigger">Time remaining until next extraction: {{ timeremaining }}</p>
+
+    <p class="halfline">&nbsp;</p>
+
+    Buy tickets - 100 GEU each!
+
+    <p class="halfline">&nbsp;</p>
+
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="amount" size="3" value="1" style="font-family:monospace">&nbsp;&nbsp;&nbsp;
+      <input type="submit" name="buyticket" value="Buy" class="button"/>
+    </form>
+
+    <p class="halfline">&nbsp;</p>
+
+    {{ counttext }}
+  {% endif %}
+
+  <h2 id="wars">Wars</h2>
+
+  <a href="#top">Top</a>
+  <p class="halfline">&nbsp;</p>
+
+  {% if wars != None %}
+  <table style="width:90%">
+  <tr>
+    <td class="center bigger"><b>Aggressor</b></td>
+    <td class="center bigger"><b>Federation</b></td>
+    <td class="center bigger"><b>Defender</b></td>
+    <td class="center bigger"><b>Federation</b></td>
+    <td class="center bigger"><b>Casus Belli</b></td>
+  </tr>
+  {% for war in wars %}
+  <tr>
+    <td class="center"><i>{{ war.attacker.worldid |worldlink }}</i></td>
+    {% if war.attacker.alliance != None %}
+    <td class="center"><a href="{% url 'alliances_ind' war.attacker.alliance.pk %}">{{ war.attacker.alliance }}</a></td>
+    {% else %}
+    <td class="center">{{ war.attacker.alliance }}</td>
+    {% endif %}
+    <td class="center"><i>{{ war.defender.worldid |worldlink }}</i></td>
+    {% if war.defender.alliance != None %}
+    <td class="center"><a href="{% url 'alliances_ind' war.defender.alliance.pk %}">{{ war.defender.alliance }}</a></td>
+    {% else %}
+    <td class="center">{{ war.defender.alliance }}</td>
+    {% endif %}
+    <td class="center" style="width:20%">{{ war.reason }}</td>
+  </tr>
+  {% endfor %}
+  </table>
+  {% else %}
+  <p>How peaceful! There are no wars.</p>
+  {% endif %}
+
+  <h2 id="announcements">Announcements</h2>
+
+  <a href="#top">Top</a>
+
+  </center>
+
+  {% if announcements != None %}
+  {% for announcement in announcements %}
+      <p class="bigger">Sent by <b>{{ announcement.sender.worldid |worldlink:True }}</b>:</p>
+      {{ announcement.content }}
+      <p class="halfline">&nbsp;</p>
+      Sent: {{ announcement.datetime | time:"H:i:s" }} on {{ announcement.datetime | date:"jS N" }}
+      <hr>
+      <p></p>
+  {% endfor %}
+  {% else %}
+  <p class="center">How quiet! There are no announcements.</p>
+  {% endif %}
+
+
+  {% if displayform != None %}
+  <center>
+    <p>Make an announcement (100 GEU):</p>
+    <form action="" method="post">{% csrf_token %}
+      <textarea name="announcement" id="announcement" rows="4" cols="50" class="countable" maxlength="500"></textarea>
+      <p class="vsmallline">&nbsp;</p>
+      <span id="announcementstatus"></span>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="sendannouncement" value="Make announcement" class="button"/>
+    </form>
+  </center>
+  {% endif %}
+
+  <center>
+    <h2 id="stats">Statistics</h2>
+    <a href="#top">Top</a>
+    <p class="halfline">&nbsp;</p>
+    <table style="width:70%" class="striped leftpad">
+      <tr class="light">
+        <td>Total Worlds:</td><td>{{ stats.totworlds }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Amyntas Worlds:</td><td>{{ stats.totA }}</td>
+      </tr>
+      <tr class="light">
+        <td>Bion Worlds:</td><td>{{ stats.totB }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Cleon Worlds:</td><td>{{ stats.totC }}</td>
+      </tr>
+      <tr class="light">
+        <td>Draco Worlds:</td><td>{{ stats.totD }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Galactic GDP:</td><td>{{ stats.totGDP }} million GEU</td>
+      </tr>
+      <tr class="light">
+        <td>Galactic Budget:</td><td>{{ stats.totbudget }} GEU</td>
+      </tr>
+      <tr class="dark">
+        <td>Galactic Growth:</td><td>{{ stats.totgrowth }} million GEU</td>
+      </tr>
+      <tr class="light">
+        <td>Galactic Warpfuel Supply:</td><td>{{ stats.totfuel }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Galactic Warpfuel Production:</td><td>{{ stats.totfuelprod }} per turn</td>
+      </tr>
+      <tr class="light">
+        <td>Galactic Duranium Supply:</td><td>{{ stats.totdur }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Galactic Duranium Production:</td><td>{{ stats.totdurprod }} per turn</td>
+      </tr>
+      <tr class="light">
+        <td>Galactic Tritanium Supply:</td><td>{{ stats.tottrit }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Galactic Tritanium Production:</td><td>{{ stats.tottritprod }} per turn</td>
+      </tr>
+      <tr class="light">
+        <td>Galactic Adamantium Supply:</td><td>{{ stats.totadam }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Galactic Adamantium Production:</td><td>{{ stats.totadamprod }} per turn</td>
+      </tr>
+      <tr class="light">
+        <td>Total Freighters:</td><td>{{ stats.totfreighters }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Shipyards:</td><td>{{ stats.totshipyards }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Fighters:</td><td>{{ stats.totfig }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Corvettes:</td><td>{{ stats.totcor }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Light Cruisers:</td><td>{{ stats.totlcr }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Destroyers:</td><td>{{ stats.totdes }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Frigates:</td><td>{{ stats.totfri }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Heavy Cruisers:</td><td>{{ stats.tothcr }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Battlecruisers:</td><td>{{ stats.totbcr }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Battleships:</td><td>{{ stats.totbsh }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Dreadnoughts:</td><td>{{ stats.totdre }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Worlds at Fighter level:</td><td>{{ stats.totfiglvl }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Worlds at Corvette level:</td><td>{{ stats.totcorlvl }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Worlds at Light Cruiser level:</td><td>{{ stats.totlcrlvl }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Worlds at Destroyer level:</td><td>{{ stats.totdeslvl }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Worlds at Frigate level:</td><td>{{ stats.totfrilvl }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Worlds at Heavy Cruiser level:</td><td>{{ stats.tothcrlvl }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Worlds at Battlecruiser level:</td><td>{{ stats.totbcrlvl }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Worlds at Battleship level:</td><td>{{ stats.totbshlvl }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Total Worlds at Dreadnought level:</td><td>{{ stats.totdrelvl }}</td>
+      </tr>
+      <tr class="light">
+        <td>Total Warpoints:</td><td>{{ stats.totwar }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Free Market Worlds:</td><td>{{ stats.totfree }}</td>
+      </tr>
+      <tr class="light">
+        <td>Mixed Economy Worlds:</td><td>{{ stats.totmixed }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Central Planning Worlds:</td><td>{{ stats.totcp }}</td>
+      </tr>
+      <tr class="light">
+        <td>Liberal Democracies:</td><td>{{ stats.totlibdem }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Totalitarian Democracies:</td><td>{{ stats.totauthdem }}</td>
+      </tr>
+      <tr class="light">
+        <td>Single-Party Worlds:</td><td>{{ stats.totsingle }}</td>
+      </tr>
+      <tr class="dark">
+        <td>Fleet Admiralty Worlds:</td><td>{{ stats.totadmiralty }}</td>
+      </tr>
+      <tr class="light">
+        <td>Autocracies:</td><td>{{ stats.totauto }}</td>
+      </tr>
+    </table>
+  <center>
+
+{% endblock %}

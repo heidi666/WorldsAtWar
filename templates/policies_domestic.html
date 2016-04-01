@@ -1,0 +1,102 @@
+{% extends "policies_base.html" %}
+{% block title %}Worlds at War - Domestic Policies{% endblock %}
+
+{% block policies %}
+
+<center>
+
+  <h1>Domestic Policies</h1>
+
+  <p>Current budget: {{ money }} GEU</p>
+
+  {% if result != None %}
+    <p class="message">{{ result|safe }}</p></center>
+  {% endif %}
+
+</center>
+
+<form action="" method="post">{% csrf_token %}
+
+  <table>
+  <tr>
+    <td class="bigger" colspan="2">Round Up Dissenters</td>
+  </tr>
+  <tr>
+    <td colspan="2">Stability will rise slightly and your government will become more authoritarian, but people will be unhappy.</td>
+  </tr>
+  <tr>
+    <td style="width:50%">Cost: 50 GEU</td>
+    <td align="left"> <input type="submit" name="arrest" value="Round Up" class="button"/></td>
+  </tr>
+
+  <tr><td colspan="2"><hr></td></tr>
+
+  <tr>
+    <td class="bigger" colspan="2">Free Political Prisoners</td>
+  </tr>
+  <tr>
+    <td colspan="2">Your government will become more democratic if you free those who criticise you, 
+      but stability will drop slightly and your prisoners might even join the rebels.</td>
+  </tr>
+  <tr>
+    <td>Cost: 50 GEU</td>
+    <td align="left"><input type="submit" name="free" value="Free" class="button"/></td>
+  </tr>
+
+  <tr><td colspan="2"><hr></td></tr>
+
+  <tr>
+    <td class="bigger" colspan="2">Martial Law</td>
+  </tr><tr>
+    <td colspan="2">Declare Martial Law. This can only be done when your world is in a state of war. The Fleet Admiralty 
+      will take control and you will gain military units. Stability will greatly increase but you will lose the people's approval.</td>
+  </tr><tr>
+    <td>Cost: 500 GEU</td>
+    <td align="left"><input type="submit" name="martiallaw" value="Declare" class="button"/>
+  </tr>
+
+  <tr><td colspan="2"><hr></td></tr>
+
+  <tr>
+    <td class="bigger" colspan="2">Citybuilding Program</td>
+  </tr>
+  <tr>
+    <td colspan="2">If you build cities for your people to live in, they will be happier and their quality of life might increase. 
+      Cost varies with GDP and economic system.</td>
+  </tr>
+  <tr>
+    <td>Cost: {{ citycost }} GEU</td>
+    <td align="left"><input type="submit" name="citybuilding" value="Build" class="button"/></td>
+  </tr>
+
+  <tr><td colspan="2"><hr></td></tr>
+
+  <tr>
+    <td class="bigger" colspan="2">Literacy Program</td>
+  </tr>
+  <tr>
+    <td colspan="2">You can set up a free worldwide literacy program for your people, and their quality of life will increase as a result.</td>
+  </tr>
+  <tr>
+    <td> Cost: {{ GDP }} GEU</td>
+    <td align="left"><input type="submit" name="literacy" value="Teach" class="button"/></td>
+  </tr>
+
+  <tr><td colspan="2"><hr></td></tr>
+
+  <tr>
+    <td class="bigger" colspan="2">Healthcare Program</td>
+  </tr>
+  <tr>
+    <td colspan="2">Put free healthcare provisions in place for your people and their quality of life will increase tremendously. </td>
+  </tr>
+  <tr>
+    <td>Cost: {{ moreGDP }} GEU</td>
+    <td align="left"> <input type="submit" name="healthcare" value="Healthcare" class="button"/></td>
+  </tr>
+
+  </table>
+</form>
+
+{% endblock %}
+

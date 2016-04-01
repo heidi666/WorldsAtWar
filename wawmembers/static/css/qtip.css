@@ -1,0 +1,58 @@
+/* General display */
+.tip {
+  display:none;
+}
+
+/* Sidebar tooltip */
+.sidetooltip .qtip-content {
+  border: solid 1px gray;
+  background-color: black;
+  padding: 0px;
+}
+
+.sidetooltip .qtip-content a:link,a:visited {
+  display:block;
+  font-size: 20px;
+  font-weight: bold;
+  color: gray;
+  width: 110px;
+  text-align: center;
+  text-decoration: none;
+  line-height: 150%;
+  padding: 0px;
+}        
+
+.sidetooltip .qtip-content a:hover,a:active {
+  color:black;
+  background-color:gray;
+}
+
+/* Main page tooltips */
+.tooltip .qtip-content {
+  border-style:solid;
+  border-width:1px;
+  border-color: gray;
+  background-color: #101010;
+  color:white;
+  font-size: 14px;
+  line-height:115%
+}
+
+.tooltip .qtip-tip{
+  background-color: #101010;
+}
+
+/* Fleet power breakdowns */
+.smallertip .qtip-content {
+  border-style:solid;
+  border-width:1px;
+  border-color: gray;
+  background-color: #101010;
+  color:white;
+  font-size: 10px;
+  line-height:115%;
+}
+
+.smallertip .qtip-tip{
+  background-color: #101010;
+}

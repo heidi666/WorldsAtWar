@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+{% load static from staticfiles %}
+
+<head>
+  <title>Worlds at War Movie Night</title>
+  <link rel="shortcut icon" href="{% static "wawmembers/favicon.ico" %}" />
+  <link href="//vjs.zencdn.net/4.5/video-js.css" rel="stylesheet">
+  <script src="//vjs.zencdn.net/4.5/video.js"></script>
+  <style>
+  body {
+    background-color:black;
+  }
+  h1 {
+    color:white;
+  }
+  td {
+    margin-right: 10px;
+  }
+  </style>
+</head>
+
+<body>
+
+<center>
+  <h1>Worlds at War Movie Night Presents...</h1>
+  <table>
+    <tr>
+      <td align="center">
+        <!--video id="example_video_1" class="video-js vjs-default-skin"
+        controls preload="auto" width="1152" height="480"
+        poster="{% static "wawmembers/kb.jpg" %}"
+        data-setup='{"example_option":true}'>
+        <source src="{% static "wawmembers/kb2.mp4" %}" type="video/mp4">
+        Your browser does not support this video.
+        </video-->
+        <embed id="divxplayer" type="video/divx" width="900" height="520"
+        src ="http://wawgame.eu/media/lucy.mkv" autoPlay=\"true\"
+        pluginspage=\"http://go.divx.com/plugin/download/\"></embed>
+      </td>
+      <td align="center">
+        <span style="color:white;">Click 'connect' below ;)</span> <br>
+        <iframe src='http://www.wsirc.com/?username=User&server=irc.rizon.net%3A6667&channel=%23wawvideo' style='width:300px;height:520px'></iframe>
+      </td>
+    </tr>
+  </table>
+</center>
+
+</body>
+
+</html>

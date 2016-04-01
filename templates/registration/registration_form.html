@@ -1,0 +1,43 @@
+{% extends "registration/registration_base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+<script type="text/javascript" src="{% static "js/regvalidator.js" %}"></script>
+<script type="text/javascript" src="{% static "js/length.js" %}"></script>
+{% endblock %}
+{% block title %}Worlds at War - Register for an account{% endblock %}
+
+{% block content %}
+<h1>Register for an account</h1>
+
+<p>Please note that Microsoft emails (@hotmail, @live, etc) have difficulty receiving WaW emails.<br>If possible, choose another provider. Otherwise contact me by email or IRC.</p>
+
+<div id="reg-form">
+  <form method='post' action=''>{% csrf_token %}
+    {% if form.errors %}
+    {{ form.errors }}
+    {% endif %}
+    <table>
+      <tr>
+        <td>{{ form.username.label_tag }}</td>
+        <td>{{ form.username }} &nbsp; <span id="id_usernamestatus"></span> <span id="userstatus"></span></td>
+      </tr>
+      <tr>
+        <td>{{ form.email.label_tag }}</td>
+        <td>{{ form.email }}</td>
+      </tr>
+      <tr>
+        <td>{{ form.password1.label_tag}}</td>
+        <td>{{ form.password1 }}</td>
+      </tr>
+      <tr>
+        <td>{{ form.password2.label_tag}} &nbsp;&nbsp;</td>
+        <td>{{ form.password2 }}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td style="margin-top:10px;"><button type="submit" class="button">Send Activation Email</button></td>
+      </tr>
+    </table>
+  </form>
+</div>
+{% endblock %}

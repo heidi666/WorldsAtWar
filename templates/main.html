@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <link rel="stylesheet" href="{% static "css/main.css" %}" type="text/css">
+  <style>
+    .qtip {
+      max-width: 500px;
+    }
+  </style>
+{% endblock %}
+{% load mildisplay %}
+{% load filters %}
+
+{% block title %}Worlds at War - Your World{% endblock %}
+
+{% block content %}
+
+<div class="main">
+
+  <center>
+
+    {% if haswars %}
+      <p class="bigger" style="color: red;">You are at WAR!</p>
+    {% endif %}
+
+    {% if world.rumsoddium != 0 %}
+      <p class="rumsoddium">You have prized rumsoddium!</p>
+    {% endif %}
+
+    {% if message %}
+      <p class="message">{{ message | safe }}</p>
+    {% endif %}
+
+    <p class="halfline">&nbsp;</p>
+
+    {{ world.world_descriptor }}
+
+    <h1>{{ world.world_name }}</h1>
+
+    {% if world.donator == True %}
+      <img src="{{world.donatorflag}}" alt="Custom flag" id="displayflag">
+    {% else %}
+      <img src="{% static "avatarsnflags/"|add:world.flag|add:".gif" %}" alt="{{ world.flag }}">
+    {% endif %}
+
+    <p>{{ world.world_desc | linebreaks:5 }}</p>
+
+    {% if world.donator == True %}
+      <img src="{{world.donatoravatar}}" alt="Custom avatar" id="displayavatar">
+    {% else %}
+      <img src="{% static "avatarsnflags/"|add:world.avatar|add:".gif" %}" alt="{{ world.avatar }}">
+    {% endif %}
+
+    <p class="halfline">&nbsp;</p>
+
+    {{ world.leadertitle }}:
+
+    <p class="halfline">&nbsp;</p>
+
+    <b><i class="bigger">{{ world.displayname | safe }}</i></b>
+
+    {% if world.card != 'None' %}
+      <p class="halfline">&nbsp;</p><img src="{% static "cards/"|add:world.card|add:".gif" %}" alt="Card" height="60">
+    {% endif %}
+
+    {% if world.donator == True %}
+      <p>
+        <iframe width="300" height="30" src="https://www.youtube.com/embed/{{world.donatoranthem}}?rel=0&autoplay=1"
+          frameborder="0" allowfullscreen></iframe>
+      </p>
+    {% endif %}
+
+    <p>Sector: <i>{{ world.displayregion }}</i></p>
+
+    <p><a href="{% url 'warlogs' %}">War Logs</a> / <a href="{% url 'reslogs' %}">Resource Logs</a></p>
+
+    <h2>Domestic</h2>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Political System:</td>
+        <td><i>{{ world.displaypol }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Perception:</td>
+        <td class="tiptrigger" id="cont">{{ world.displaycontentment|safe}}<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="light">
+        <td>Stability:</td>
+        <td class="tiptrigger" id="stab">{{ world.displaystability|safe}}<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="dark">
+        <td>Rebels:</td>
+        <td class="tiptrigger" id="reb">{{ world.displayrebels|safe }}<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="light">
+        <td>Quality of life:</td>
+        <td>{{ world.displayqol|safe }}</td>
+      </tr>
+    </table>
+
+    <h2>Economic</h2>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Economic System:</td>
+        <td><i>{{ world.displayecon }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Budget:</td>
+        <td class="tiptrigger" id="budget"><i>{{ world.budget }}</i> GEU<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="light">
+        <td>GDP:</td>
+        <td class="tiptrigger" id="gdp"><i>{{ world.gdp }}</i> million GEU<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="dark">
+        <td>Policy Growth:</td>
+        <td><i>{{ world.growth }}</i> million GEU</td>
+      </tr>
+      <tr class="light">
+        <td>Trade Resource:</td>
+        <td><i>{{ world.displayresource }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Resource Production:</td>
+        <td><i>{{ world.resourceproduction }}</i> lots per turn</td>
+      </tr>
+    </table>
+
+    <h2>Diplomacy</h2>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Federation: </td>
+        {% if alliance %}
+          <td><b><i><a href="{% url 'alliances_ind' world.alliance.pk %}">{{ world.alliance }}</a></i></b></td>
+        {% else %}
+          <td><i>None</i></td>
+        {% endif %}
+      </tr>
+    </table>
+
+    <h2>Military</h2>
+
+    {% if haswars != None %}
+      <div class="warmessage">
+        <h3>Wars</h3>
+        {% if offlist %}
+          <p>Attacking: &nbsp;
+            {% for war in offlist %}
+              {{ war.worldid |worldlink }} &nbsp;
+            {% endfor %}
+          </p>
+        {% endif %}
+        {% if deflist %}
+          <p>Defending: &nbsp;
+            {% for war in deflist %}
+              {{ war.worldid |worldlink }} &nbsp;
+            {% endfor %}
+          </p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if warprotection != None or abovegdpprotection != None or brokenwarprotect != None %}
+      <h3>Statuses</h3>
+      {% if warprotection != None %}
+        {{ warprotection }}
+        <br>
+      {% endif %}
+      {% if abovegdpprotection != None %}
+        {{ abovegdpprotection }}
+        <br>
+      {% endif %}
+      {% if brokenwarprotect != None %}
+        {{ brokenwarprotect }}
+        <br>
+      {% endif %}
+    {% endif %}
+
+    <h3>Supplies</h3>
+
+    <table class="striped supplydisplay">
+      <tr class="verydark">
+        <td class="tableheader">Resource </td>
+        <td class="tableheader">Amount</td>
+        <td class="tableheader">Production / turn</td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad">Warpfuel:</td>
+        <td class="center supplytiptrigger" id="fuel"><i>{{ world.warpfuel }}</i> <span class="tnotif">T</span></td>
+        <td class="center"><i>{{ world.warpfuelprod }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad">Duranium:</td>
+        <td class="center"><i>{{ world.duranium }}</i> </td>
+        <td class="center"><i>{{ world.duraniumprod }}</i></td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad">Tritanium:</td>
+        <td class="center"><i>{{ world.tritanium }}</i> </td>
+        <td class="center"><i>{{ world.tritaniumprod }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad">Adamantium:</td>
+        <td class="center"> <i>{{ world.adamantium }}</i> </td>
+        <td class="center"><i>{{ world.adamantiumprod }}</i></td>
+      </tr>
+      {% if world.rumsoddium != 0 %}
+        <tr class="light">
+          <td class="leftpad" style="color:green;">Rumsoddium:</td>
+          <td class="center" style="color:green;"><i>{{ world.rumsoddium}}</i> </td>
+          <td class="center" style="color:green;">None</td>
+        </tr>
+      {% endif %}
+    </table>
+
+    <h3>General</h3>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Military production level:</td>
+        <td><i>{{ millevel }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Progress: </td>
+        <td>
+          {% if progress != None %}
+            <div class="meter"><span style="width:{{ progress }}%"></span></div>
+          {% else %}
+            Completed!
+          {% endif %}
+        </td>
+      </tr>
+      <tr class="light">
+        <td>Shipyards:</td>
+        <td><i>{{ world.shipyards }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Shipyards in use:</td>
+        <td><i>{{ world.shipyardsinuse }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>Freighters in use:</td>
+        <td><i>{{ world.freightersinuse }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Power you can send:</td>
+        <td><i>{{ cansendpower }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>War points:</td>
+        <td><i>{{ world.warpoints }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Duranium salvage:</td>
+        <td><i>{{ world.salvdur }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>Tritanium salvage:</td>
+        <td><i>{{ world.salvtrit }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Adamantium salvage:</td>
+        <td><i>{{ world.salvadam }}</i></td>
+      </tr>
+      {% if world.displaypship == None %}
+        <tr class="light">
+          <td>Personal Ship:</td>
+          <td><i>None</i></td>
+        </tr>
+      {% endif %}
+    </table>
+
+    {% if world.displaypship != None %}
+      <p class="halfline">&nbsp;</p>
+      <h3>Personal Ship</h3>
+      <table class="striped">
+        <tr class="light">
+          <td class="leftpad">Ship type:</td>
+          <td class="leftpad"><i>{{ world.displaypship }}</i></td>
+        </tr>
+        <tr class="dark">
+          <td colspan="2" class="center nohl">
+            {% if world.donator == True %}
+              <img src="{{ world.donatorflagship }}" alt="Custom flagship" id="displayflagship" height="200px">
+            {% else %}
+              <img src="{% static "personalships/"|add:world.flagshippicture|add:".gif" %}" alt="{{ world.flagshippicture }}" id="displayflagship">
+            {% endif %}
+          </td>
+        </tr>
+        <tr class="light">
+          <td colspan="2" class="center" style="font-size:1.2em"><i><b>{{ world.flagshipname }}</b></i></td>
+        </tr>
+        <tr class="dark">
+          <td class="leftpad">Location:</td>
+          <td class="leftpad"><i>{{ shiploc }}</i></td>
+        </tr>
+      </table>
+    {% endif %}
+
+    <br>
+
+    <table style="width:90%" class="striped militarydisplay">
+      <tr class="verydark">
+        <td class="hidden nohl"></td>
+        <td class="center"><b>{{ homeregion.0 }}</b></td>
+        <td class="center"><b>{{ staging.0 }}</b></td>
+        <td class="center">{{ region1.0 }}</td>
+        <td class="center">{{ region2.0 }}</td>
+        <td class="center">{{ region3.0 }}</td>
+        <td class="center">{{ hangars.0 }}</td>
+      </tr>
+      <tr class="verydark">
+        <td class="hidden nohl"></td>
+        <td class="center"><b>{{ homeregion.1 }}</b></td>
+        <td class="center">{{ staging.1 }}</td>
+        <td class="center">{{ region1.1 }}</td>
+        <td class="center">{{ region2.1 }}</td>
+        <td class="center">{{ region3.1 }}</td>
+        <td class="center">{{ hangars.1 }}</td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad"><b>Training</b></td></span>
+        <td class="center">{% hyphendisplay homeregion.11 homeregion %}</td>
+        <td class="center">{% hyphendisplay staging.11 staging %}</td>
+        <td class="center">{% hyphendisplay region1.11 region1 %}</td>
+        <td class="center">{% hyphendisplay region2.11 region2 %}</td>
+        <td class="center">{% hyphendisplay region3.11 region3 %}</td>
+        <td class="center">{% hyphendisplay hangars.11 hangars %}</td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad"><b>Weariness</b></td>
+        {% wearinessdisplay homeregion staging %}
+        <td class="center">{% hyphendisplay region1.12 region1 %}</td>
+        <td class="center">{% hyphendisplay region2.12 region2 %}</td>
+        <td class="center">{% hyphendisplay region3.12 region3 %}</td>
+        <td class="center">{% hyphendisplay hangars.12 hangars %}</td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad"><b>Base Power</b><span class="tnotif">T</span></td>
+        <td class="center fleettiptrigger" id="homep">{% powerdisplay homeregion.14 homeregion %}</td>
+        <td class="center fleettiptrigger" id="stagingp">{% powerdisplay staging.14 staging %}</td>
+        <td class="center fleettiptrigger" id="onep">{% powerdisplay region1.14 region1 %}</td>
+        <td class="center fleettiptrigger" id="twop">{% powerdisplay region2.14 region2 %}</td>
+        <td class="center fleettiptrigger" id="threep">{% powerdisplay region3.14 region3 %}</td>
+        <td class="center fleettiptrigger" id="hangarp">{% powerdisplay hangars.14 hangars %}</td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad"><b>Base Fuel Cost</b></td>
+        <td class="center">{% hyphendisplay homeregion.13 homeregion %}</td>
+        <td class="center">{% hyphendisplay staging.13 staging %}</td>
+        <td class="center">{% hyphendisplay region1.13 region1 %}</td>
+        <td class="center">{% hyphendisplay region2.13 region2 %}</td>
+        <td class="center">{% hyphendisplay region3.13 region3 %}</td>
+        <td class="center">{% hyphendisplay hangars.13 hangars %}</td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad"><b>Supply Freighters</b><span class="tnotif">T</span></td>
+        <td class="center fleettiptrigger" id="homes">{% supplydisplay homeregion.15 homeregion %}</td>
+        <td class="center fleettiptrigger" id="stagings">{% supplydisplay staging.15 staging %}</td>
+        <td class="center fleettiptrigger" id="ones">{% supplydisplay region1.15 region1 %}</td>
+        <td class="center fleettiptrigger" id="twos">{% supplydisplay region2.15 region2 %}</td>
+        <td class="center fleettiptrigger" id="threes">{% supplydisplay region3.15 region3 %}</td>
+        <td class="center">-</td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad">Fighters</td>
+        <td class="center">{% hyphendisplay homeregion.2 homeregion %}</td>
+        <td class="center">{% hyphendisplay staging.2 staging %}</td>
+        <td class="center">{% hyphendisplay region1.2 region1 %}</td>
+        <td class="center">{% hyphendisplay region2.2 region2 %}</td>
+        <td class="center">{% hyphendisplay region3.2 region3 %}</td>
+        <td class="center">{% hyphendisplay hangars.2 hangars %}</td>
+      </tr>
+      {% if displaybuilds.1 == True %}
+        <tr class="light">
+          <td class="leftpad">Corvettes</td>
+          <td class="center">{% hyphendisplay homeregion.3 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.3 staging %}</td>
+          <td class="center">{% hyphendisplay region1.3 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.3 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.3 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.3 hangars %}</td>
+        </tr>
+      {% endif %}
+      {% if displaybuilds.2 == True %}
+        <tr class="dark">
+          <td class="leftpad">Light Cruisers</td>
+          <td class="center">{% hyphendisplay homeregion.4 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.4 staging %}</td>
+          <td class="center">{% hyphendisplay region1.4 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.4 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.4 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.4 hangars %}</td>
+        </tr>
+      {% endif %}
+      {% if displaybuilds.3 == True %}
+        <tr class="light">
+          <td class="leftpad">Destroyers</td>
+          <td class="center">{% hyphendisplay homeregion.5 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.5 staging %}</td>
+          <td class="center">{% hyphendisplay region1.5 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.5 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.5 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.5 hangars %}</td>
+        </tr>
+      {% endif %}
+      {% if displaybuilds.4 == True %}
+        <tr class="dark">
+          <td class="leftpad">Frigates</td>
+          <td class="center">{% hyphendisplay homeregion.6 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.6 staging %}</td>
+          <td class="center">{% hyphendisplay region1.6 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.6 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.6 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.6 hangars %}</td>
+        </tr>
+      {% endif %}
+      {% if displaybuilds.5 == True %}
+        <tr class="light">
+          <td class="leftpad">Heavy Cruisers</td>
+          <td class="center">{% hyphendisplay homeregion.7 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.7 staging %}</td>
+          <td class="center">{% hyphendisplay region1.7 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.7 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.7 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.7 hangars %}</td>
+        </tr>
+      {% endif %}
+      {% if displaybuilds.6 == True %}
+        <tr class="dark">
+          <td class="leftpad">Battlecruisers</td>
+          <td class="center">{% hyphendisplay homeregion.8 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.8 staging %}</td>
+          <td class="center">{% hyphendisplay region1.8 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.8 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.8 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.8 hangars %}</td>
+        </tr>
+      {% endif %}
+      {% if displaybuilds.7 == True %}
+        <tr class="light">
+          <td class="leftpad">Battleships</td>
+          <td class="center">{% hyphendisplay homeregion.9 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.9 staging %}</td>
+          <td class="center">{% hyphendisplay region1.9 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.9 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.9 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.9 hangars %}</td>
+        </tr>
+      {% endif %}
+      {% if displaybuilds.8 == True %}
+        <tr class="dark">
+          <td class="leftpad">Dreadnoughts</td>
+          <td class="center">{% hyphendisplay homeregion.10 homeregion %}</td>
+          <td class="center">{% hyphendisplay staging.10 staging %}</td>
+          <td class="center">{% hyphendisplay region1.10 region1 %}</td>
+          <td class="center">{% hyphendisplay region2.10 region2 %}</td>
+          <td class="center">{% hyphendisplay region3.10 region3 %}</td>
+          <td class="center">{% hyphendisplay hangars.10 hangars %}</td>
+        </tr>
+      {% endif %}
+    </table>
+
+  </center>
+
+</div>
+
+{{ tooltips|safe }}
+
+<script>
+$(document).ready(function(){
+
+  $('.tiptrigger').each(function() {
+    var id = $(this).attr('id');
+    $(this).qtip({
+      style: {
+        classes:'qtip-cluetip tooltip'
+      },
+      position: {
+        my: 'top left',    // Position my top left...
+        at: 'bottom left', // at the bottom right of...
+        adjust: {
+          x: 20
+        }
+      },
+      content: {
+        text: $('.tip#'+id).html(),
+      },
+      hide: {
+        event: 'mouseleave'
+      }
+    });
+  });
+
+  $('.supplytiptrigger').each(function() {
+    var id = $(this).attr('id');
+    $(this).qtip({
+      style: {
+        classes:'qtip-cluetip tooltip'
+      },
+      position: {
+        my: 'top left',    // Position my top left...
+        at: 'bottom center', // at the bottom right of...
+      },
+      content: {
+        text: $('.tip#'+id).html(),
+      },
+      hide: {
+        event: 'mouseleave'
+      }
+    });
+  });
+
+  $('.fleettiptrigger').each(function() {
+    var id = $(this).attr('id');
+    $(this).qtip({
+      style: {
+        classes:'qtip-cluetip smallertip'
+      },
+      position: {
+        my: 'left center',  // Position my top left...
+        at: 'center right', // at the bottom right of...
+        adjust: {
+          x: -25
+        }
+      },
+      content: {
+        text: $('.tip#'+id).html(),
+      },
+      hide: {
+        event: 'mouseleave'
+      }
+    });
+  });
+});
+</script>
+
+{% endblock %}

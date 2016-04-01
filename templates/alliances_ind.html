@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/length.js" %}"></script>
+{% endblock %}
+{% load filters %}
+
+{% block title %}Worlds at War - {{ alliance.alliance_name }}{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>{{ alliance.alliance_name }}</h1>
+
+  {% if message != None %}
+    <p class="message">{{ message }}</p>
+  {% endif %}
+
+  {% if displayentry != None %}
+    <form action="" method="post">{% csrf_token %}
+      <p>You have been invited to join this federation! Click to accept.</p>
+      <input type="submit" name="joinalliance" value="Join" class="button"/></p>
+    </form>
+  {% endif %}
+
+  <img src="{{ alliance.alliance_flag }}" alt="Custom flag" id="displayflag">
+
+  <p>
+    <iframe width="300" height="30" src="https://www.youtube.com/embed/{{ alliance.alliance_anthem }}?rel=0"
+      frameborder="0" allowfullscreen></iframe>
+  </p>
+
+  {% if world.leader == True or world.officer == True %}
+    {% if world.alliance == alliance %}
+
+    <form action="" method="post">{% csrf_token %}
+      <p class="halfline">&nbsp;</p>
+      <span class="bigger">Mass Communique</span>
+      <p class="halfline">&nbsp;</p>
+      <textarea name="commcontents" id="commcontents" rows="4" cols="50" class="countable"
+        maxlength="500">Insert your masscomm here.</textarea>
+      <p class="vsmallline">&nbsp;</p>
+      <span id="commcontentsstatus"></span>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="masscomm" value="Send to all" class="button"/>
+      <input type="submit" name="leadershipcomm" value="Send to leadership" class="button"/></p>
+    </form>
+
+    <form action="" method="post">{% csrf_token %}
+      <p class="halfline">&nbsp;</p>
+      <span class="bigger">Withdraw</span>
+      <p class="halfline">&nbsp;</p>
+      <input type="text" name="withdrawamount">
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="withdraw" value="Withdraw" class="button"/></p>
+    </form>
+    {% endif %}
+  {% endif %}
+
+  {% if world.alliance == alliance %}
+    <form action="" method="post">{% csrf_token %}
+      <p class="halfline">&nbsp;</p>
+      <span class="bigger">Deposit - 5% fee.</span>
+      <p class="halfline">&nbsp;</p>
+      <input type="text" name="depositamount">
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="deposit" value="Deposit"  class="button"/></p>
+    </form>
+  {% endif %}
+
+
+  <p>
+    <span class="bigger">Leader: <i><b>{{ leader.worldid |worldlink }}</b></i></span>
+  </p>
+
+  <p>{{ alliance.alliance_desc }}</p>
+
+  <p><span class="bigger">Bank:</span>
+    <i>{{ alliance.bank|floatformat }}</i> GEU
+  </p>
+
+  <a href="{% url 'alliances_stats' alliance.pk %}">Statistics</a>
+  {% if world.leader == True or world.officer == True %}
+    {% if world.alliance == alliance %}
+      / <a href="{% url 'alliances_logs' alliance.pk %}">Bank Logs</a>
+      / <a href="{% url 'alliances_memberlogs' alliance.pk %}">Member Logs</a>
+      / <a href="{% url 'alliances_admin' alliance.pk %}">Admin</a>
+    {% endif %}
+  {% endif %}
+
+  <form action="" method="post">{% csrf_token %}
+
+  <p class="bigger">Officers:</p>
+  {% if officers == None %}
+    <p>There are no officers.</p>
+  {% else %}
+    <table style="width:40%">
+      {% for officer in officers %}
+      <tr>
+        <td><b>{{ officer.worldid |worldlink }}</b></td>
+        <td>{{ officer.displayregion}}</td>
+        {% if world.leader == True  and world.alliance == alliance %}
+          <td>&nbsp;&nbsp;
+          <div class="squaretick">
+          	<input type="checkbox" value="{{officer.worldid}}" id="squaretick{{officer.worldid}}" name="listofficers" />
+          	<label for="squaretick{{officer.worldid}}"></label>
+          </div>
+          </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if world.leader == True and world.alliance == alliance %}
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="demoteofficers" value="Demote" class="button center"/>
+    {% endif %}
+  {% endif %}
+
+  {% if world.officer == True and world.alliance == alliance %}
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="resignofficer" value="Resign" class="redbutton"/>
+  {% endif %}
+
+  <p class="bigger">Members:</p>
+  {% if alliancemembs == None %}
+    There are no other members.
+  {% else %}
+    <table style="width:40%">
+    {% for member in alliancemembs %}
+    <tr>
+        <td><b>{{ member.worldid |worldlink }}</b></td>
+        <td>{{ member.displayregion }}</td>
+        {% if world.leader == True and world.alliance == alliance %}
+        <td>&nbsp;&nbsp;
+        <div class="squaretick">
+        	<input type="checkbox" value="{{member.worldid}}" id="squaretick{{member.worldid}}" name="listmembers" />
+        	<label for="squaretick{{member.worldid}}"></label>
+        </div>
+        </td>
+        {% endif %}
+    </tr>
+    {% endfor %}
+    </table>
+
+    {% if world.leader == True  and world.alliance == alliance %}
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="promotemembers" value="Promote" class="button"/>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="purgemembers" value="Purge" class="redbutton"/>
+    {% endif %}
+  {% endif %}
+
+  {% if leave != None %}
+    <p><input type="submit" name="leavealliance" value="Leave" class="redbutton"/></p>
+  {% endif %}
+
+  </form>
+</center>
+{% endblock %}
+

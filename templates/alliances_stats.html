@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Worlds at War - {{ alliance.alliance_name }} Statistics{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h2>{{ alliance.alliance_name }} Statistics</h2>
+
+  <p><a href="{% url 'alliances_ind' alliance.pk %}">Return</a></p>
+
+  {% if message != None %}
+    <p class="message">{{ message }}</p>
+  {% endif %}
+
+  <table style="width:50%">
+    <tr>
+      <td>Worlds:</td><td>{{ totworlds }}</td>
+    </tr>
+    {% if generaldisp == True %}
+      {% for item in general %}
+        <tr>
+          {{ item | safe }}
+        </tr>
+      {% endfor %}
+    {% endif %}
+    {% if economicdisp == True %}
+      {% for item in economic %}
+        <tr>
+          {{ item | safe }}
+        </tr>
+      {% endfor %}
+    {% endif %}
+    {% if resourcesdisp == True %}
+      {% for item in resources %}
+        <tr>
+          {{ item | safe}}
+        </tr>
+      {% endfor %}
+    {% endif %}
+    {% if militarydisp == True %}
+      {% for item in military %}
+        <tr>
+          {{ item | safe}}
+        </tr>
+      {% endfor %}
+    {% endif %}
+    {% if econtypesdisp == True %}
+      {% for item in econtypes %}
+        <tr>
+          {{ item | safe}}
+        </tr>
+      {% endfor %}
+    {% endif %}
+    {% if poltypesdisp == True %}
+      {% for item in poltypes %}
+        <tr>
+          {{ item | safe}}
+        </tr>
+      {% endfor %}
+    {% endif %}
+    {% if millevelsdisp == True %}
+      {% for item in millevels %}
+        <tr>
+          {{ item | safe}}
+        </tr>
+      {% endfor %}
+    {% endif %}
+  </table>
+
+</center>
+
+{% endblock %}

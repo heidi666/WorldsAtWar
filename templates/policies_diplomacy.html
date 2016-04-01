@@ -1,0 +1,88 @@
+{% extends "policies_base.html" %}
+{% load static from staticfiles %}
+{% block policiesextrahead %}
+  <script type="text/javascript" src="{% static "js/length.js" %}"></script>
+{% endblock %}
+
+{% block title %}Worlds at War - Diplomatic Policies{% endblock %}
+
+{% block policies %}
+
+<center>
+
+  <h1>Diplomatic Policies</h1>
+
+  <p>Current budget: {{ money }} GEU</p>
+
+  {% if result != None %}
+    <p class="message">{{ result|safe }}</p>
+  {% endif %}
+
+</center>
+
+<form action="" method="post">{% csrf_token %}
+  <table>
+  <tr>
+    <td class="bigger" colspan="2">Institute a Federation</td>
+  </tr>
+  <tr>
+    <td colspan="2">Create a federation of planets to organise and pool resources. A unique page will be created for your federation.</td>
+  </tr>
+  <tr>
+    <td style="width:50%">Cost: 200 GEU</td>
+    <td align="left"><input type="submit" name="createfederation" value="Institute" class="button"/></td>
+  </tr>
+  </table>
+</form>
+
+<hr>
+
+<div class="nopara">
+  <form action="" method="post">{% csrf_token %}
+    <table>
+    <tr>
+      <td class="bigger" colspan="3">Train Secret Agent</td>
+    </tr>
+    <tr>
+      <td colspan="3">Sometimes a direct approach is not the best way... you can train a spy to gather intel,
+        sabotage your enemy, and much more, under the guise of 'tourism'.</td>
+    </tr>
+    <tr>
+      <td style="width:25%">Cost: 500 GEU </td>
+      <td align="right" style="width:25%" >
+        <input type="text" name="spyname" size="10" value="Name" class="countable" maxlength="10" id="spyname">&nbsp;&nbsp;
+      </td>
+      <td align="left"><input type="submit" name="trainspy" value="Train" class="button"/> &nbsp;&nbsp;<span id="spynamestatus"></span></td>
+    </tr>
+    </table>
+  </form>
+</div>
+
+<hr>
+
+<form action="" method="post">{% csrf_token %}
+  <table>
+  <tr>
+    <td class="bigger" colspan="3">Counterintelligence Sweep</td>
+  </tr>
+  <tr>
+    <td colspan="3">Perhaps you have too many tourists in your fair world? Your intelligence agency will conduct
+      a thorough sweep to attempt to find any, and eliminate them.</td>
+  </tr>
+  <tr>
+    <div class="nopara">
+      <td style="width:20%">Cost: 100 GEU </td><td style="width:30%" align="right">
+        {% if spyform != None %}
+          {{ spyform.spyselect.label_tag }} {{ spyform.spyselect }}
+        {% else %}
+          <span style="color:red;">You have no spies! &nbsp;&nbsp;
+        {% endif %} &nbsp;
+      </td>
+      <td align="left"><input type="submit" name="counterintel" value="Sweep" class="button"/></td>
+    </div>
+  </tr>
+  </table>
+</form>
+
+{% endblock %}
+

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/settings.js" %}"></script>
+  <style>
+    td {
+      text-align: center;
+      margin-bottom: 5px;
+    }
+    td img {
+      max-height: 75px;
+    }
+  </style>
+{% endblock %}
+{% load warstatus %}
+{% load filters %}
+
+{% block title %}Worlds at War - The Galaxy{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>The Galaxy</h1>
+
+  <div class="nopara">
+    <form action="" method="post">{% csrf_token %}
+      <input type="text" name="searchdata" value="Search (by name)" id="searchbox">&nbsp;&nbsp;
+      <input type="submit" name="search" value="Search"  class="button"/>
+    </form>
+  </div>
+
+  {% if results %}
+    <div style="width:80%">
+      <p class="bigger">Results:</p>
+      {% for result in results %}
+        {{ result.worldid |worldlink }} {% if not forloop.last %}&nbsp;{% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <p class="halfline">&nbsp;</p>
+
+  <hr>
+
+  <p class="halfline">&nbsp;</p>
+
+  {% if showform == True %}
+
+    <div class="nopara">
+      <form action="" method="post" id="sortform">{% csrf_token %}
+        {{ sortform.sortby.label_tag }} {{ sortform.sortby }}
+        <noscript><input type="submit" name="selectsort" value="Select" class="button" ></noscript>
+      </form>
+    </div>
+
+    <p class="halfline">&nbsp;</p>
+
+  {% endif %}
+
+  <p class="halfline">&nbsp;</p>
+  <div style="width:80%">
+    {% for page in pages %}
+      <a href="{% url 'statspage' page %}"{% if current == page %} style="color:green;"{% endif %}>{{ page }}</a>
+      {% if not forloop.last %}&nbsp;{% endif %}
+    {% endfor %}
+  </div>
+  <p class="halfline">&nbsp;</p>
+
+  <p class="halfline">&nbsp;</p>
+
+  <table style="width:95%">
+  <tr>
+    {% if flagpref != None %}
+      <th>Flag</th>
+    {% endif %}
+    <th> World Name </th><th> Leader </th><th> Sector </th><th> GDP </th><th> Federation </th>
+    {% if ownworld != None %}
+      <th> Warrable </th>
+    {% endif %}
+  </tr>
+  {% for world in worlds %}
+    <tr>
+      {% if flagpref != None %}
+        <td><img src="
+          {% if world.donator == True %}
+            {{ world.donatorflag }}
+          {% else %}
+            {% static "avatarsnflags/"|add:world.flag|add:".gif" %}
+          {% endif %}"
+            alt="Custom flag">
+        </td>
+      {% endif %}
+      <td><b>{{ world.worldid |worldlink }}</b></td>
+      <td><i>{{ world.displayname | safe }}</i></td>
+      <td>{{ world.displayregion }}</td>
+      <td>{{ world.gdp }}</td>
+      {% if world.alliance != None %}
+        <td><b><i><a href="{% url 'alliances_ind' world.alliance.pk %}">{{ world.alliance }}</a></i></b></td>
+      {% else %}
+        <td><i>None</i></td>
+      {% endif %}
+      {% if ownworld != None %}
+        <td>{% warstatus ownworld.pk world.pk %}</td>
+      {% endif %}
+    </tr>
+  {% endfor %}
+  </table>
+
+  <p class="halfline">&nbsp;</p>
+
+  <div style="width:80%">
+    {% for page in pages %}
+      <a href="{% url 'statspage' page %}"{% if current == page %} style="color:green;"{% endif %}>{{ page }}</a>
+      {% if not forloop.last %}&nbsp;{% endif %}
+    {% endfor %}
+  </div>
+
+</center>
+
+<script>
+$(document).ready(function(){
+  $("#searchbox").focus(function(){
+    if ($(this).val() == "Search (by name)"){
+      $(this).val("");
+    }
+  });
+});
+</script>
+
+{% endblock %}
+
+

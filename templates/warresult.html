@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <link rel="stylesheet" href="{% static "css/main.css" %}" type="text/css">
+  <style>
+    hr {
+      width:60%;
+    }
+  </style>
+{% endblock %}
+
+{% block title %}Worlds at War - Battle Result{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>Battle Result</h1>
+
+  {% if battlevictory == True %}
+    <h2>Victory!</h2>
+    <img src="{% static "wawmembers/warvictory.gif" %}" alt="victory" id="tohide">
+  {% else %}
+    <h2>Loss!</h2>
+    <img src="{% static "wawmembers/warloss.gif" %}" alt="loss" id="tohide">
+  {% endif %}
+
+  <p class="halfline">&nbsp;</p>
+
+  {{ resultdetails | safe }}
+
+</center>
+
+<script>
+$(document).ready(function() {
+  $('#tohide').click( function() {
+    $(this).hide();
+  });
+});
+</script>
+
+{% endblock %}

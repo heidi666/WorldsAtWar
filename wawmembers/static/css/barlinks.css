@@ -1,0 +1,55 @@
+/*POLICIES LINKS*/
+.policieslinks ul {
+  list-style-type:none;
+  margin:0;
+  padding:0;
+  text-align:center;
+} 
+
+.policieslinks li {
+  font-size:2em;
+  display:inline;
+}
+
+.policieslinks a:link,a:visited {
+  display:inline-block;
+  font-weight:bold;
+  color:gray;
+  width:180px;
+  text-align:center;
+  padding:2px;
+  text-decoration:none;
+}
+
+.policieslinks a:hover,a:active {
+  color:black;
+  background-color:gray;
+}
+
+/*GALACTIC NEWS LINKS*/
+.toplinks ul {
+  list-style-type:none;
+  margin:0;
+  padding:0;
+  text-align:center;
+} 
+
+.toplinks li {
+  font-size:1.4em;
+  display:inline;
+}
+
+.toplinks a:link,a:visited {
+  display:inline-block;
+  font-weight:bold;
+  color:gray;
+  width:180px;
+  text-align:center;
+  padding:2px;
+  text-decoration:none;
+}
+
+.toplinks a:hover,a:active {
+  color:black;
+  background-color:gray;
+}

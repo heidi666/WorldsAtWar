@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/jquery.collapsible.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css" />
+  <style>
+  h3 {
+    display:inline-block;
+  }
+  .collapse-open span {
+    background:url({% static "wawmembers/minus.png" %}) center no-repeat;
+    padding:10px;
+  }
+
+  .collapse-close span {
+    background:url({% static "wawmembers/plus.png" %}) center center no-repeat;
+    padding:10px;
+  }
+  table td {
+    width: 20%;
+    text-align: center;
+  }
+</style>
+{% endblock %}
+{% load filters %}
+
+{% block title %}Worlds at War - Galactic Market{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>Galactic Market</h1>
+
+  {% if message != None %}
+    <p class="message">{{ message| safe }}</p>
+  {% endif %}
+
+  <h2>Your offers</h2>
+
+  <form action="" method="post">{% csrf_token %}
+    <input type="submit" name="newtrade" value="Post New Trade" class="button"/></p>
+  </form>
+
+</center>
+
+{% if not owntrades %}
+
+  <p class="center">You have not posted any trades.<p>
+
+{% else %}
+
+  <center>
+    {% if warprotection %}
+      <span style="color:red;">Warning: you are under protection! If you send ships, your protection will end.</span>
+      <p class="halfline">&nbsp;</p>
+    {% endif %}
+
+    {% if indefwar != None %}
+      <span style="color:red;">Warning: you are in a defensive war! If you send ships, you will suffer approval and stability losses.</span>
+      <p class="halfline">&nbsp;</p>
+    {% endif %}
+  </center>
+
+  {% for trade in owntrades %}
+    <form action="" method="post">{% csrf_token %}
+      You are offering {{ trade.amountoff }} {{ trade.displayoff }} for {{ trade.amountrec }} {{ trade.displayrec }}.
+      {{ trade.amounttrades|tradesleft }}
+      <p class="halfline">&nbsp;</p>
+      Posted: {{ trade.datetime | time:"H:i:s" }} on {{ trade.datetime | date:"jS N" }} &nbsp;&nbsp;&nbsp;&nbsp;
+      <input type='hidden' name='tradeid' value='{{ trade.id }}'>
+      <input type="text" name="tradeno" value="{{ trade.amounttrades }}" size="4" style="font-family:monospace">&nbsp;
+      <input type="submit" name="modify" value="Change amount" class="button"/>&nbsp;
+      <input type="submit" name="delete" value="Remove" class="redbutton"/>
+    </form>
+    {% if not forloop.last %}
+      <hr><p class="halfline">&nbsp;</p>
+    {% endif %}
+  {% endfor %}
+
+{% endif %}
+
+<hr>
+<center>
+  <p class="bigger">Your resources</p>
+  <table style="width:90%">
+    <tr>
+      <td>Budget: {{reslist.0}}</td>
+      <td>Warpfuel: {{reslist.1}}</td>
+      <td>Duranium: {{reslist.2}}</td>
+      <td>Tritanium: {{reslist.3}}</td>
+      <td>Adamantium: {{reslist.4}}</td>
+    </tr>
+  </table>
+</center>
+<hr>
+
+<h2 class="center">Trades</h2>
+
+{% if warprotection %}
+  <p class="center" style="color:red;">Warning: you are under protection! If you send ships, your protection will end.</p>
+{% endif %}
+
+{% if notrades %}
+
+  <p class="center">There are no trades on the market!</p>
+
+{% else %}
+
+  {% for tradetype in tradeslist %}
+    {% if tradetype %}
+      <h3>{{ tradenames|lookup:forloop.counter0 }}&nbsp;&nbsp;</h3>
+      <span class="collapsible" id="section{{forloop.counter}}"><span></span></span>
+      <div>
+        {% for trade in tradetype %}
+          <form action="" method="post">{% csrf_token %}
+            {{ trade.info.owner.worldid |worldlink }} is offering {{ trade.info.amountoff }} {{ trade.info.displayoff }}
+              for {{ trade.info.amountrec }} {{ trade.info.displayrec }}.
+            {{ trade.info.amounttrades|tradesleft }}
+            {% if trade.delay != None %}
+              &nbsp; ETA: {{ trade.delay }} hours.
+            {% endif %}
+            <br>Posted: {{ trade.info.datetime | time:"H:i:s" }} on {{ trade.info.datetime | date:"jS N" }} &nbsp;&nbsp;&nbsp;&nbsp;
+            <input type='hidden' name='tradeid' value='{{ trade.info.id }}'>
+            <input type="text" name="tradeno" value="1" size="4" style="font-family:monospace">&nbsp;
+            <input type='submit' name='accepttrade' value='Accept' class="button"/>
+          </form>
+          {% if not forloop.last %}<hr>{% endif %}
+          <p class="halfline">&nbsp;</p>
+        {% endfor %}
+      </div>
+      <br>
+    {% endif %}
+  {% endfor %}
+
+{% endif %}
+
+
+<script type="text/javascript">
+$(document).ready(function() {
+//collapsible management
+    $('.collapsible').collapsible();
+});
+</script>
+
+{% endblock %}

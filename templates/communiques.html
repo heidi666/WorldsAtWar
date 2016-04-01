@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/jquery.collapsible.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/togglecheckboxes.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css">
+  <style>
+    .collapse-open span {
+      background:url({% static "wawmembers/minus.png" %}) center no-repeat;
+      padding:10px;
+    }
+
+    .collapse-close span {
+      background:url({% static "wawmembers/plus.png" %}) center center no-repeat;
+      padding:10px;
+    }
+  </style>
+{% endblock %}
+{% load filters %}
+
+{% block title %}Worlds at War - Communiques{% endblock %}
+
+{% block content %}
+
+<center>
+  <h1>Communiques</h1>
+  <p class="bigger"><a href="{% url 'sentcomms' %}">Outbox</a></p>
+</center>
+
+{% if commsdict != None %}
+
+  <span class="js">
+    <p class="halfline">&nbsp;</p>
+    <center>
+      <a href="" id="tickall">Tick all</a> / <a href="" id="untickall">Untick all</a>
+    </center>
+    <p class="halfline">&nbsp;</p>
+  </span>
+
+  <form action="" method="post">{% csrf_token %}
+    {% for sender, comms in commsdict.items %}
+      <span class="bigger">Sent by <b>{{ sender.worldid |worldlink }}</b>:
+        ({{ numberlist |lookup:forloop.counter0 }}) &nbsp;&nbsp;</span>
+      <span class="collapsible" id="{{sender.world_name}}"><span></span></span>
+      <div>
+        <p></p>
+        {% for item in comms %}
+            {{ item.content | linebreaks:5 }}
+            <p class="halfline">&nbsp;</p>
+            Received: {{ item.datetime | time:"H:i:s" }} on {{ item.datetime | date:"jS N" }} &nbsp;&nbsp;
+            <div class="squaretick">
+              <input type="checkbox" value="{{item.pk}}" id="squaretick{{item.pk}}" name="commitem" />
+              <label for="squaretick{{item.pk}}"></label>
+            </div>
+            {% if not forloop.last %}<hr>{% endif %}
+        {% endfor %}
+      </div>
+      <p class="halfline">&nbsp;</p>
+      <hr>
+    {% endfor %}
+
+    <center>
+
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="delete" value="Delete" class="button"/>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="deleteall" value="Delete all comms" class="redbutton"/>
+
+      <p class="bigger">Delete by world</p>
+
+      <div class="nopara">
+        {{ deleteform.target.label_tag }} {{ deleteform.target }} &nbsp;
+        <input type="submit" name="deletebyworld" value="Delete" class="button"/>
+      </div>
+
+    </center>
+  </form>
+
+{% else %}
+
+  <p class="center">You have no comms.</p>
+
+{% endif %}
+
+<script type="text/javascript">
+  $(document).ready(function() {
+  //collapsible management
+      $('.collapsible').collapsible({
+          defaultOpen: '{{ unread }}'
+      });
+  });
+</script>
+
+{% endblock %}

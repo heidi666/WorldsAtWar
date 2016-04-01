@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/newtrade.js" %}"></script>
+{% endblock %}
+
+{% block title %}Worlds at War - New Trade{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>New Trade</h1>
+
+  <p><a href="{% url 'trades' %}">Return to Market</a></p>
+
+  {% if form.errors %}
+    <p style="color: red;">
+      Please correct the error{{ form.errors | pluralize }} below.
+    </p>
+  {% endif %}
+
+  {% if message != None %}
+   <p class="message">{{ message | safe}}</p>
+  {% endif %}
+
+  Each trade accepted will cost you {{cost}} GEU. <br>
+  If you cannot meet this cost, or you do not have enough freighters, you will be fined!
+  <p class="halfline">&nbsp;</p>
+
+  {% if warprotection != None %}
+    <span style="color:red;">Warning: you are under protection! If you send ships, your protection will end.</span>
+    <p class="halfline">&nbsp;</p>
+  {% endif %}
+
+  {% if indefwar != None %}
+    <span style="color:red;">Warning: you are in a defensive war! If you send ships, you will suffer approval and stability losses.</span>
+    <p class="halfline">&nbsp;</p>
+  {% endif %}
+
+  <form action="" method="post">{% csrf_token %}
+
+    <table>
+      <tr>
+        <td>{{ form.offer.label_tag }}</td>
+        <td>{{ form.offer }}</td>
+      </tr>
+      <tr>
+        <td>{{ form.amountoff.label_tag }}</td>
+        <td>{{ form.amountoff }}</td>
+      </tr>
+      <tr>
+        <td>{{ form.receive.label_tag }}</td>
+        <td>{{ form.receive }}</td>
+      </tr>
+      <tr>
+        <td>{{ form.amountrec.label_tag }}</td>
+        <td>{{ form.amountrec }}</td>
+      </tr>
+      <tr>
+        <td>{{ form.amounttrades.label_tag }}&nbsp;</td>
+        <td>{{ form.amounttrades }}</td>
+      </tr>
+    </table>
+
+    <p>
+      <span id="resstat"></span>
+      <span id="amountstat"></span>
+      <span id="tradesstat"></span>
+    </p>
+    <input type="submit" value="Submit" class="button">
+
+  </form>
+
+</center>
+
+{% endblock %}
+

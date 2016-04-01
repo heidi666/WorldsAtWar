@@ -1,0 +1,25 @@
+{% extends "registration/registration_base.html" %}
+{% url 'auth_login' as auth_login_url %}
+
+{% block title %}{% if account %}Worlds at War - Activation complete{% else %}Worlds at War - Activation problem{% endif %}{% endblock %}
+{% block content %}
+
+<center>
+
+{% if account %}
+
+<h1>Activation Complete!</h1>
+
+Thanks {{ account }}, activation complete!
+You may now <a href='{{ auth_login_url }}'>login</a> using the username and password you set at registration.
+
+{% else %}
+
+<h1>Activation Problem</h1>
+
+Oops &ndash; it seems that your activation key is invalid.  Please check the url again.
+{% endif %}
+
+</center>
+
+{% endblock %}

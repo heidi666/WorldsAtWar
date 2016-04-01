@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load filters %}
+
+{% block title %}Worlds at War - {{ alliance.alliance_name }} Member Logs{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h2>{{ alliance.alliance_name }}</h2>
+  <h3>Member Logs</h3>
+
+  <p><a href="{% url 'alliances_ind' alliance.pk %}">Return</a></p>
+
+  {% if loglist %}
+
+    <table style="width:75%" class="bordered log">
+      <tr>
+      <th>Date + Time</th><th align="left">&nbsp;&nbsp;&nbsp;&nbsp;Action</th>
+      {% for log in loglist %}
+        <tr>
+          <td class="center" style="width:30%">{{ log.datetime | date:"jS N" }}, {{ log.datetime | time:"H:i:s" }}</td>
+          <td align="left"> &nbsp;&nbsp;&nbsp;&nbsp;
+          {% if log.logtype == 0 %}
+            {{ log.officer.worldid |worldlink }} invited {{ log.world.worldid |worldlink }} to join.
+          {% elif log.logtype == 1 %}
+            {{ log.officer.worldid |worldlink }} revoked {{ log.world.worldid |worldlink }}'s invitation to join.
+          {% elif log.logtype == 2 %}
+            {{ log.world.worldid |worldlink }} accepted an invite to join.
+          {% elif log.logtype == 3 %}
+            {{ log.officer.worldid |worldlink }} promoted {{ log.world.worldid |worldlink }} to officership.
+          {% elif log.logtype == 4 %}
+            {{ log.officer.worldid |worldlink }} demoted {{ log.world.worldid |worldlink }} from officership.
+          {% elif log.logtype == 5 %}
+            {{ log.world.worldid |worldlink }} resigned his officership.
+          {% elif log.logtype == 6 %}
+            {{ log.officer.worldid |worldlink }} purged {{ log.world.worldid |worldlink }} from the alliance.
+          {% elif log.logtype == 7 %}
+            {{ log.world.worldid |worldlink }} left the alliance.
+          {% elif log.logtype == 8 %}
+            {{ log.officer.worldid |worldlink }} handed leadership to {{ log.world.worldid |worldlink }}.
+          {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+
+  {% else %}
+
+    You have no member logs!
+
+  {% endif %}
+
+</center>
+
+{% endblock %}
+

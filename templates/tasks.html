@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css">
+{% endblock %}
+
+{% block title %}Worlds at War - Tasks{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>Tasks</h1>
+
+  {% if revoked != 0 %}
+    <p class="message">{{ revoked | safe}} tasks revoked.</p>
+  {% endif %}
+
+</center>
+
+{% if tasks != None %}
+
+  <h3>Ongoing Tasks</h3>
+  <form action="" method="post">{% csrf_token %}
+    {% for task in tasks %}
+      {{ task.data.content | safe }} {{ task.hours }}:{{ task.minutes }}:{{ task.seconds }}.
+      {% if task.data.revokable == True %}
+        &nbsp;&nbsp;
+        <div class="squaretick">
+          <input type="checkbox" value="{{task.data.id}}" id="squaretick{{task.data.id}}" name="taskitem" />
+          <label for="squaretick{{task.data.id}}"></label>
+        </div>
+      {% endif %}
+      {% if not forloop.last %}<hr>{% endif %}
+    <p class="halfline">&nbsp;</p>
+    {% endfor %}
+
+  {% if revokable != 0 %}
+    <center>
+      <input type="submit" name="revoke" value="Revoke" class="redbutton"/>
+    </center>
+  {% endif %}
+  </form>
+
+{% endif %}
+
+{% if tasks != None and completedtasks != None %}
+  <p class="halfline">&nbsp;</p>
+{% endif %}
+
+{% if completedtasks != None %}
+  <form action="" method="post">{% csrf_token %}
+  <h3>Completed Tasks</h3>
+  {% for task in completedtasks %}
+    {{ task.outcome | safe }}
+      &nbsp;&nbsp;
+      <div class="squaretick">
+        <input type="checkbox" value="{{task.id}}" id="squaretick{{task.id}}" name="taskitem" />
+        <label for="squaretick{{task.id}}"></label>
+      </div>
+    {% if not forloop.last %}<hr>{% endif %}
+    <p class="halfline">&nbsp;</p>
+  {% endfor %}
+
+  <center>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="delete" value="Delete" class="button"/>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="deleteall" value="Delete all tasks" class="redbutton"/></p>
+  </center>
+</form>
+{% endif %}
+
+{% if tasks == None and completedtasks == None %}
+  <p class="center">You have no ongoing or completed tasks.</p>
+{% endif %}
+
+{% endblock %}
+
+
+
+

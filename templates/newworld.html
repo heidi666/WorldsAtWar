@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/worldvalidator.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/length.js" %}"></script>
+  <style>
+    div#reg-form {
+      width: 750px;
+    }
+
+    table {
+      width: 750px;
+    }
+
+    td {
+      padding-top: 5px;
+      padding-bottom: 5px;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+
+    .firsttd {
+      text-align: center;
+      width: 100px;
+    }
+
+    input[type=radio] {
+      display: none;
+    }
+
+    .styleradio {
+      display:inline;
+      width: 21px;
+      margin: 21px auto;
+      position: relative;
+    }
+
+    .styleradio label {
+      display: inline-block;
+      cursor: pointer;
+      position: relative;
+      padding-left: 25px;
+      margin-right: 15px;
+      font-size: 13px;
+    }
+
+    .styleradio label:before {
+      content: "";
+      display: inline-block;
+
+      width: 27px;
+      height: 27px;
+
+      margin-right: 10px;
+      position: absolute;
+      left: 0;
+      bottom: 1px;
+      background: -webkit-linear-gradient(top, #222 0%, #45484d 100%);
+      background: -moz-linear-gradient(top, #222 0%, #45484d 100%);
+      background: -o-linear-gradient(top, #222 0%, #45484d 100%);
+      background: -ms-linear-gradient(top, #222 0%, #45484d 100%);
+      background: linear-gradient(top, #222 0%, #45484d 100%);
+      box-shadow: inset 0px 2px 3px 0px rgba(0, 0, 0, .3), 0px 1px 0px 0px rgba(255, 255, 255, .8);
+    }
+
+    .styleradio label:before {
+      border-radius: 14px;
+    }
+
+    .styleradio input[type=radio]:checked + label:before {
+      content: "\2022";
+      color: #C0C0C0;
+      font-size: 60px;
+      text-align: center;
+      line-height: 29px;
+    }
+    .errorlist {
+      padding: 0px;
+      margin: 0px;
+      list-style: none;
+    }
+  </style>
+{% endblock %}
+{% load filters %}
+
+{% block title %}Worlds at War - New World{% endblock %}
+
+{% block content %}
+
+<center>
+  <h1>New World</h1>
+
+  <p style="color:red;">
+    Only one account per person is allowed.<br>
+    Report more than one world on an IP address <a href="http://wawgame.eu/forums/index.php?topic=646">here</a>.
+  </p>
+
+  {% if message != None %}
+    <p class="message">{{ message }}</p>
+  {% endif %}
+
+  {% if form.errors %}
+    <p style="color: red;">
+      Please correct the error{{ form.errors | pluralize }} below:
+    </p>
+  {% endif %}
+
+  <div id="reg-form">
+    <form method='post' action=''>{% csrf_token %}
+
+      {% if form.errors %}
+        {% with form|nice_errors as qq %}
+        {% for key, value in qq.items %}
+        {{key}}:
+        {{value}}
+        {% endfor %}
+        {% endwith %}
+      {% endif %}
+
+      <p class="bigger">{{ form.worldname.label_tag }}</p>
+      {{ form.worldname }}
+      <span id="id_worldnamestatus"></span>
+      <span id="worldstatus"></span>
+
+      <p class="halfline">&nbsp;</p>
+
+      <p class="bigger">{{ form.region.label_tag }}</p>
+      <table>
+      {% for radio in form.region %}
+        <tr>
+          <td class="firsttd">
+            <label class="bigger">{{ radio.choice_label }}</label>
+          </td>
+          {{regiondata | lookup:forloop.counter0 | safe}}
+          <td align="center" style="width:10%">
+            <div class="styleradio"><span>{{ radio.tag }}<label for="radioregion_{{forloop.counter0}}"></label></span></div>
+          </td>
+        </tr>
+      {% endfor %}
+      </table>
+
+      <p class="halfline">&nbsp;</p>
+
+      <p class="bigger">{{ form.econsystem.label_tag}}</p>
+      <table>
+        {% for radio in form.econsystem %}
+          <tr>
+            <td class="firsttd"><label class="bigger">{{ radio.choice_label }}</label></td>
+            {{econdata | lookup:forloop.counter0 | safe}}
+            <td align="center"><div class="styleradio"><span>{{ radio.tag }}<label for="radioecon_{{forloop.counter0}}"></label></span></div></td>
+          </tr>
+        {% endfor %}
+      </table>
+
+      <p class="halfline">&nbsp;</p>
+
+      <p class="bigger">{{ form.polsystem.label_tag}}</p>
+      <p class="halfline">&nbsp;</p>
+      <table>
+        {% for radio in form.polsystem %}
+          <tr>
+            <td class="firsttd"><label class="bigger">{{ radio.choice_label }}</label></td>
+            {{poldata | lookup:forloop.counter0 | safe}}
+            <td align="center"><div class="styleradio"><span>{{ radio.tag }}<label for="radiopol_{{forloop.counter0}}"></label></span></div></td>
+          </tr>
+        {% endfor %}
+      </table>
+
+      <p class="halfline">&nbsp;</p>
+
+      <input type="submit" value="Submit" class="button">
+    </form>
+  </div>
+
+</center>
+
+{% endblock %}
+

@@ -250,3 +250,9 @@ class BanAdmin(admin.ModelAdmin):
     search_fields = ['address']
 
 admin.site.register(Ban, BanAdmin)
+
+
+class CookieAdmin(admin.ModelAdmin):
+    list_display = ('LoggedIn', 'Match', 'date')
+
+admin.site.register(SecurityCookie, CookieAdmin)

@@ -37,7 +37,7 @@ def world_required(f):
             if world.vacation:
                 return render(request, 'vacation.html')
             else:
-                return f(request, *args, **kwargs)
+                return f(request, world=world, *args, **kwargs)
 
     wrap.__doc__ = f.__doc__
     wrap.__name__ = f.__name__

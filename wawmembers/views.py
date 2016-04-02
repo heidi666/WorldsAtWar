@@ -43,13 +43,12 @@ def index(request):
 
 @login_required
 @world_required
-def main(request, message=None):
+def main(request, world, message=None):
     'Main page: user\'s world.'
 
     haswars = offlist = deflist = None
     warprotection = abovegdpprotection = brokenwarprotect = None
 
-    world = World.objects.get(worldid=request.user.id)
     ip = request.META.get('REMOTE_ADDR')
     world.lastloggedinip = ip
     world.lastloggedintime = v.now()
@@ -147,18 +146,14 @@ def main(request, message=None):
 
 @login_required
 @world_required
-def spies(request):
-
-    world = World.objects.get(worldid=request.user.id)
+def spies(request, world):
     spieslist = list(Spy.objects.filter(owner=world))
-
     return render(request, 'spies.html', {'spieslist': spieslist})
 
 
 @login_required
 @world_required
-def warlogs(request):
-    world = World.objects.get(worldid=request.user.id)
+def warlogs(request, world):
 
     if request.method == 'POST':
         form = request.POST
@@ -195,8 +190,7 @@ def warlogs(request):
 
 @login_required
 @world_required
-def reslogs(request):
-    world = World.objects.get(worldid=request.user.id)
+def reslogs(request, world):
 
     if request.method == 'POST':
         form = request.POST
@@ -293,13 +287,11 @@ def new_world(request):
 
 @login_required
 @world_required
-def settings(request):
+def settings(request, world):
     'Users change settings here.'
 
     message = None
     invalid = 'Invalid preference selected.'
-
-    world = World.objects.get(worldid=request.user.id)
 
     if request.method == 'POST':
         form = request.POST
@@ -517,10 +509,9 @@ def settings(request):
 
 @login_required
 @world_required
-def tradecentre(request):
+def tradecentre(request, world):
     'Display and admin trade agreements here.'
 
-    world = World.objects.get(worldid=request.user.id)
     message = None
 
     ownlist = utilities.getownlist(world)
@@ -787,10 +778,9 @@ def galacticnews(request):
 
 @login_required
 @world_required
-def tasks(request):
+def tasks(request, world):
     'View and revoke tasks here.'
 
-    world = World.objects.get(worldid=request.user.id)
     revoked = 0
 
     if request.method == 'POST':
@@ -845,10 +835,8 @@ def tasks(request):
 
 @login_required
 @world_required
-def communiques(request):
+def communiques(request, world):
     'View/delete comms here.'
-
-    world = World.objects.get(worldid=request.user.id)
 
     if request.method == 'POST':
         form = request.POST
@@ -912,10 +900,8 @@ def communiques(request):
 
 @login_required
 @world_required
-def sentcomms(request):
+def sentcomms(request, world):
     'View/delete sent comms here.'
-
-    world = World.objects.get(worldid=request.user.id)
 
     if request.method == 'POST':
         form = request.POST
@@ -962,10 +948,9 @@ def sentcomms(request):
 
 @login_required
 @world_required
-def newtrade(request):
+def newtrade(request, world):
     'Propose a new trade here.'
 
-    world = World.objects.get(worldid=request.user.id)
     message = warprotection = indefwar = None
 
     if world.wardefender.count() > 0:
@@ -1044,10 +1029,9 @@ def newtrade(request):
 
 @login_required
 @world_required
-def trades(request):
+def trades(request, world):
     'Accept/delete/modify a trade here.'
 
-    world = World.objects.get(worldid=request.user.id)
     warprotection = indefwar = None
     endprotect = ''
     message = world.tempmsg
@@ -1617,10 +1601,9 @@ def alliances_ind(request, allid):
 
 @login_required
 @world_required
-def alliances_logs(request, allid):
+def alliances_logs(request, allid, world):
     'Displays alliance logs. Only leaders and officers allowed.'
 
-    world = World.objects.get(worldid=request.user.id)
     alliance = Alliance.objects.get(allianceid=allid)
 
     if not (world.alliance == alliance and (world.officer or world.leader)):
@@ -1632,10 +1615,9 @@ def alliances_logs(request, allid):
 
 @login_required
 @world_required
-def alliances_memberlogs(request, allid):
+def alliances_memberlogs(request, allid, world):
     'Displays member logs. Only leaders and officers allowed.'
 
-    world = World.objects.get(worldid=request.user.id)
     alliance = Alliance.objects.get(allianceid=allid)
 
     if not (world.alliance == alliance and (world.officer or world.leader)):
@@ -1647,10 +1629,9 @@ def alliances_memberlogs(request, allid):
 
 @login_required
 @world_required
-def alliances_admin(request, allid):
+def alliances_admin(request, allid, world):
     'Admin an alliance here. Only leaders and officers allowed, with different functions.'
 
-    world = World.objects.get(worldid=request.user.id)
     alliance = Alliance.objects.get(allianceid=allid)
     leader = None
     message = None
@@ -1812,10 +1793,9 @@ def alliances_admin(request, allid):
 
 @login_required
 @world_required
-def alliances_stats(request, allid):
+def alliances_stats(request, allid, world):
     'Displays stats of an alliance.'
 
-    world = World.objects.get(worldid=request.user.id)
     alliance = Alliance.objects.get(allianceid=allid)
     leader = officer = member = None
     generaldisp = economicdisp = resourcesdisp = militarydisp = econtypesdisp = poltypesdisp = millevelsdisp = None
@@ -1967,10 +1947,9 @@ def alliances_stats(request, allid):
 
 @login_required
 @world_required
-def new_alliance(request):
+def new_alliance(request, world):
     'New alliance page, checks if the world has not got an alliance and if fee to create paid.'
 
-    world = World.objects.get(worldid=request.user.id)
     message = None
 
     if world.alliance != None:
@@ -2009,10 +1988,9 @@ def new_alliance(request):
 #GDP Sales stuff
 @login_required
 @world_required
-def gdphome(request):
+def gdphome(request, world):
     'GDP Offers Home View'
 
-    world = World.objects.get(worldid=request.user.id)
     message = None
     try:
         youroffer = GDPSale.objects.get(seller=world)
@@ -2023,10 +2001,9 @@ def gdphome(request):
 
 @login_required
 @world_required
-def gdpoffers(request):
+def gdpoffers(request, world):
     'View for GDP Offers list'
 
-    world = World.objects.get(worldid=request.user.id)
     message = None
     offers = GDPSale.objects.filter(buyer=world)
     return render(request, 'gdpsale/gdpoffers.html', {'message': message, 'offers': offers, })
@@ -2034,11 +2011,10 @@ def gdpoffers(request):
 
 @login_required
 @world_required
-def gdpmakeoffer(request):
+def gdpmakeoffer(request, world):
     'Return POST data or view for making gdp offers'
 
     if request.method == 'POST':
-        world = World.objects.get(worldid=request.user.id)
         form = GDPSaleForm(request.POST)
         if form.is_valid():
             buyer = form.cleaned_data['buyer']
@@ -2077,7 +2053,6 @@ def gdpmakeoffer(request):
 
         return render(request, 'gdpsale/gdpmakeoffer.html', {'form': form})
 
-    world = World.objects.get(worldid=request.user.id)
     message = None
 
     form = GDPSaleForm()
@@ -2087,11 +2062,10 @@ def gdpmakeoffer(request):
 
 @login_required
 @world_required
-def acceptgdpsale(request, saleid):
+def acceptgdpsale(request, saleid, world):
     'Process acceptance of GDP Sale'
 
     message = None
-    world = World.objects.get(worldid=request.user.id)
     sale = get_object_or_404(GDPSale, id=saleid)
     seller = sale.seller
     thresholdbuyer = GDPSaleThresholdManager.objects.get(target=world)
@@ -2129,11 +2103,10 @@ def acceptgdpsale(request, saleid):
 
 @login_required
 @world_required
-def denygdpsale(request, saleid):
+def denygdpsale(request, saleid, world):
     'Process denial of GDP Sale'
 
     message = None
-    world = World.objects.get(worldid=request.user.id)
     #World is equal to the buyer
     sale = get_object_or_404(GDPSale, id=saleid)
     #Verify sale belongs to user
@@ -2149,11 +2122,10 @@ def denygdpsale(request, saleid):
 
 @login_required
 @world_required
-def revokegdpsale(request, saleid):
+def revokegdpsale(request, saleid, world):
     'Process revocation of GDP Sale'
 
     message = None
-    world = World.objects.get(worldid=request.user.id)
     sale = get_object_or_404(GDPSale, id=saleid)
     if sale.seller != world:
         return redirect("gdphome")

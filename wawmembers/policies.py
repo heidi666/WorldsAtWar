@@ -32,10 +32,9 @@ D = decimal.Decimal
 @login_required            ## ECONOMIC
 @world_required
 @noaction_required
-def policies_econ(request):
+def policies_econ(request, world):
 
     # variable setup
-    world = World.objects.get(worldid=request.user.id)
 
     result = rumsodmsg = None
     warpcost, durcost, tritcost, adamcost, rescost = utilities.rescosts(world)
@@ -298,10 +297,9 @@ def policies_econ(request):
 @login_required            ## DOMESTIC
 @world_required
 @noaction_required
-def policies_domestic(request):
+def policies_domestic(request, world):
 
     # variable setup
-    world = World.objects.get(worldid=request.user.id)
     gdp = world.gdp
     moregdp = 1.5 * world.gdp
 
@@ -429,11 +427,10 @@ def policies_domestic(request):
 @login_required            ## DIPLOMACY
 @world_required
 @noaction_required
-def policies_diplomacy(request):
+def policies_diplomacy(request, world):
 
     # variable setup
     result = None
-    world = World.objects.get(worldid=request.user.id)
     if Spy.objects.filter(owner=world, location=world).count() == 0:
         spyform = None
     else:
@@ -531,10 +528,9 @@ def policies_diplomacy(request):
 @login_required            ## MILITARY
 @world_required
 @noaction_required
-def policies_military(request):
+def policies_military(request, world):
 
     # variable setup
-    world = World.objects.get(worldid=request.user.id)
 
     result = indefwar = rumsodmsg = None
 

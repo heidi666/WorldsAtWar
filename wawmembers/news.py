@@ -22,9 +22,8 @@ D = decimal.Decimal
 
 @login_required
 @world_required
-def world_news(request):
+def world_news(request, world):
 
-    world = World.objects.get(worldid=request.user.id)
     anlist = ActionNewsItem.objects.filter(target=world)
     message = None
     notask = 'No such news item!'

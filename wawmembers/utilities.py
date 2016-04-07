@@ -1,4 +1,4 @@
-# # Django Imports
+# Django Imports
 from django.db.models import F
 from django.core.exceptions import ObjectDoesNotExist
 

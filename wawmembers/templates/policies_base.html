@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <link rel="stylesheet" href="{% static "css/barlinks.css" %}" type="text/css">
+  <style>
+    table {
+      width: 100%;
+    }
+  </style>
+{% block policiesextrahead %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+
+<div class="policieslinks">
+  <center>
+    <ul>
+      <li><a href="{% url 'policies_econ' %}">Economics</a></li>
+      <li><a href="{% url 'policies_domestic' %}">Domestic</a></li>
+      <li><a href="{% url 'policies_diplomacy' %}">Diplomacy</a></li>
+      <li><a href="{% url 'policies_military' %}">Fleet</a></li>
+    </ul>
+  </center>
+</div>
+
+{% block policies %}{% endblock %}
+
+{% endblock %}

@@ -5,8 +5,8 @@ from django.core.urlresolvers import reverse
 import decimal, random
 
 # WaW Imports
-from wawmembers.models import World, NewsItem, Agreement, AgreementLog
-
+from wawmembers.models import World, NewsItem
+import wawmembers.variables as v
 '''
 Misc utility functions for turnchange.
 '''
@@ -17,8 +17,17 @@ D = decimal.Decimal
 ### CALCULATIONS
 ################
 
+def upkeep(world):
+    upkeep = 0
+    for entry in v.upkeep:
+        upkeep += world.__dict__[entry] * v.upkeep[entry]
+    if world.sector == 'cleon':
+        upkeep *= 0.8 #total upkeep
+    upkeep = D(upkeep) / D(36.0) #3 updates per hour 12 hours per turn
+    return upkeep.quantize(D('.1'))
+
 def toadd(world):
-    if world.region == 'A':
+    if world.sector == 'amyntas':
         toadd = D((world.gdp/D(36))*D(1.15))
     else:
         toadd = D(world.gdp/D(36))
@@ -164,96 +173,44 @@ def rebstab(world):
 def grostab(world):
     grostab = 0
     if world.stability < -80:
-        grostab = -5
+        grostab = -4
     elif -80 <= world.stability < -60:
         grostab = -2
     elif -60 <= world.stability < -40:
         grostab = -1
-    elif 40 <= world.stability < 60:
+    elif 20 <= world.stability < 40:
         grostab = 1
-    elif 60 <= world.stability < 80:
+    elif 40 <= world.stability < 60:
         grostab = 2
+    elif 60 <= world.stability < 80:
+        grostab = 3
     elif world.stability >= 80:
         grostab = 5
     return grostab
 
 
-def tradeavailability(world):
-    from wawmembers.utilities import freighterregion
-    count = freighterregion(world, world.region)
-    agreementlist = list(Agreement.objects.filter(sender=world).exclude(order=0).order_by('order')) + \
-        list(Agreement.objects.filter(sender=world, order=0))
-    for agreement in agreementlist:
-        if agreement.sender != agreement.receiver:
-            count -= 1
-            if count <= 0:
-                agreement.available = False
-                agreement.save(update_fields=['available'])
-                AgreementLog.objects.create(owner=agreement.sender, target=agreement.receiver, resource=agreement.resource, logtype=4)
-                AgreementLog.objects.create(owner=agreement.receiver, target=agreement.sender, resource=agreement.resource, logtype=5)
-
-
-def grotrade(world, availableonly=False):
-    lol = []
-    growth = geu = 0
-
-    for restype in xrange(1, 13):
-        if availableonly:
-            lol.append(list(Agreement.objects.filter(receiver=world, resource=restype, available=True)))
-        else:
-            lol.append(list(Agreement.objects.filter(receiver=world, resource=restype)))
-
-    for index, res in enumerate(lol):
-        lol[index] = [1 for agreement in res]
-        lol[index].extend([0] * (12 - len(res)))
-
-    from wawmembers.utilities import lolindexoutcome
-    for index in xrange(0,10):
-        toaddgrowth, toaddgeu = lolindexoutcome(world, lol, index)
-        growth += toaddgrowth
-        geu += toaddgeu
-
-    return growth, geu
-
-
-def groind(world, allocated):
-    if world.econsystem == 1:
-        growth = rem = 0
-    elif world.econsystem == 0:
-        growth, rem = divmod(allocated, D(80))
-    elif world.econsystem == -1:
-        growth, rem = divmod(allocated, D(60))
-    return growth, rem
-
-
-def groindvar(groind):
-    if 0 < groind <= 10:
-        var = random.randint(-1,1)
-    elif 10 < groind <= 20:
-        var = random.randint(-2, 2)
-    elif 20 < groind <= 30:
-        var = random.randint(-3, 3)
-    elif 30 < groind <= 40:
-        var = random.randint(-4, 4)
-    else:
-        var = 0
-    return var
-
-
 def fuelcost(world):
     import wawmembers.utilities as utilities
-    cost = 0.25 * utilities.warpfuelcost([
-        (world.fighters_inA + world.fighters_inB + world.fighters_inC + world.fighters_inD + world.fighters_inS),
-        (world.corvette_inA + world.corvette_inB + world.corvette_inC + world.corvette_inD + world.corvette_inS),
-        (world.light_cruiser_inA + world.light_cruiser_inB + world.light_cruiser_inC + world.light_cruiser_inD + world.light_cruiser_inS),
-        (world.destroyer_inA + world.destroyer_inB + world.destroyer_inC + world.destroyer_inD + world.destroyer_inS),
-        (world.frigate_inA + world.frigate_inB + world.frigate_inC + world.frigate_inD + world.frigate_inS),
-        (world.heavy_cruiser_inA + world.heavy_cruiser_inB + world.heavy_cruiser_inC + world.heavy_cruiser_inD + world.heavy_cruiser_inS),
-        (world.battlecruiser_inA + world.battlecruiser_inB + world.battlecruiser_inC + world.battlecruiser_inD + world.battlecruiser_inS),
-        (world.battleship_inA + world.battleship_inB + world.battleship_inC + world.battleship_inD + world.battleship_inS),
-        (world.dreadnought_inA + world.dreadnought_inB + world.dreadnought_inC + world.dreadnought_inD + world.dreadnought_inS)]
-        )
-    return int(cost)
+    cost = 0
+    for blob in world.controlled_fleets.all().exclude(sector='warping').exclude(sector='hangar'):
+        cost += blob.fuelcost()
+    return int(cost * 0.25)
+
+
+def growthdecay(world):
+    decay = 0
+    if world.growth > 45:
+        decay = 1
+    if world.growth > 60:
+        decay = 2
+    if world.growth > 70:
+        decay = 3
+    if world.growth > 75:
+        decay = 4
+    if world.growth >= 77:
+        decay = 5
+        decay += 1 + (world.growth-77)*0.2
+    return decay
 
 
 #################
@@ -338,27 +295,19 @@ def rebstabnotif(rebstab):
 
 
 # Growth
-def growthnotif(grotrade, grostab, gropol, groind):
-    total = grotrade + grostab + gropol + groind
-    data = 'Your gdp increased by %s over the turnchange.' % total
+def growthnotif(grostab, decay):
+    total = grostab - decay
+    if total < 0:
+        data = 'Your gdp decreased by %s over the turnchange.' % (total - total*2)
+    else:
+        data = 'Your gdp increased by %s over the turnchange.' % total
     details = ''
-    if grotrade > 0:
-        details += '<span style=\"color:green;\">%s</span> from trading, ' % grotrade
     if grostab > 0:
         details += '<span style=\"color:green;\">%s</span> from stability, ' % grostab
     elif grostab < 0:
         details += '<span style=\"color:red;\">%s</span> from stability, ' % grostab
-    if gropol > 0:
-        details += '<span style=\"color:green;\">%s</span> from policies, ' % gropol
-    if groind > 0:
-        details += '<span style=\"color:green;\">%s</span> from industrial program, ' % groind
     if details != '':
         data += ' (%s)' % details[:-2]
-    return data
-
-
-def groallocnotif(under):
-    data = ('You did not have enough money to fully fund your industrial program!' if under else '')
     return data
 
 
@@ -380,12 +329,10 @@ def wartimeout(attacker, defender):
 
     data = "The war between you and %s has timed out, and you are now at peace."
 
-    linkdefender = reverse('stats_ind', args=(defender.worldid,))
-    fulldefender = '<a href="%(link)s">%(defender)s</a>' % {'link':linkdefender,'defender':defender.world_name}
+    fulldefender = '<a href="%(link)s">%(defender)s</a>' % {'link':defender.get_absolute_url(),'defender':defender.name}
     NewsItem.objects.create(target=attacker, content=data % fulldefender)
 
-    linkattacker = reverse('stats_ind', args=(attacker.worldid,))
-    fullattacker = '<a href="%(link)s">%(attacker)s</a>' % {'link':linkattacker,'attacker':attacker.world_name}
+    fullattacker = '<a href="%(link)s">%(attacker)s</a>' % {'link':attacker.get_absolute_url(),'attacker':attacker.name}
     NewsItem.objects.create(target=defender, content=data % fullattacker)
 
 
@@ -405,6 +352,7 @@ def tradetimeout(trade):
 def multidetect(multilist, multitype):
     #print multilist
     finallist = {}
+    commlist = []
     for statcheck, nationlist in multilist.items():
         if len(nationlist) > 1:
             finallist[statcheck] = nationlist
@@ -420,15 +368,23 @@ def multidetect(multilist, multitype):
             nationstring = ', '.join(nationlist)
             commlist.append('%(statcheck)s:  %(list)s' % {'statcheck':statcheck, 'list':nationstring})
 
-    admin = World.objects.get(worldid=1)
+    admin = World.objects.get(pk=1)
     stuff = '<p>&nbsp;&nbsp;'.join(commlist)
     data = "<b>%(type)s Multies:</b> <p>&nbsp;&nbsp;%(stuff)s" % {'type':multitype,'stuff':stuff}
     NewsItem.objects.create(target=admin, content=data)
 
 
 # No fuel
-def nofuel(world):
-    data = "You ran out of fuel last turn! Your fleet suffers heavy weariness losses."
+def nofuel(world, fleets):
+    fleetnames = ""
+    for i, f in enumerate(fleets, 1):
+        fleetnames += f.name
+        if len(fleets)-1 == i:
+            fleetnames += ' and '
+        else:
+            fleetnames += ', '
+    data = "You ran out of fuel last turn! Your fleet%s %s suffers heavy weariness losses." % \
+        (('s' if len(fleets) > 1 else ''), fleetnames[:-2])
     NewsItem.objects.create(target=world, content=data)
 
 
@@ -463,60 +419,12 @@ def stabreset(world):
     world.stability = 0
     world.qol = 0
     world.rebels = 0
-    world.fighters_inA = int(world.fighters_inA/2)
-    world.corvette_inA = int(world.corvette_inA/2)
-    world.light_cruiser_inA = int(world.light_cruiser_inA/2)
-    world.destroyer_inA = int(world.destroyer_inA/2)
-    world.frigate_inA = int(world.frigate_inA/2)
-    world.heavy_cruiser_inA = int(world.heavy_cruiser_inA/2)
-    world.battlecruiser_inA = int(world.battlecruiser_inA/2)
-    world.battleship_inA = int(world.battleship_inA/2)
-    world.dreadnought_inA = int(world.dreadnought_inA/2)
-    world.fighters_inB = int(world.fighters_inB/2)
-    world.corvette_inB = int(world.corvette_inB/2)
-    world.light_cruiser_inB = int(world.light_cruiser_inB/2)
-    world.destroyer_inB = int(world.destroyer_inB/2)
-    world.frigate_inB = int(world.frigate_inB/2)
-    world.heavy_cruiser_inB = int(world.heavy_cruiser_inB/2)
-    world.battlecruiser_inB = int(world.battlecruiser_inB/2)
-    world.battleship_inB = int(world.battleship_inB/2)
-    world.dreadnought_inB = int(world.dreadnought_inB/2)
-    world.fighters_inC = int(world.fighters_inC/2)
-    world.corvette_inC = int(world.corvette_inC/2)
-    world.light_cruiser_inC = int(world.light_cruiser_inC/2)
-    world.destroyer_inC = int(world.destroyer_inC/2)
-    world.frigate_inC = int(world.frigate_inC/2)
-    world.heavy_cruiser_inC = int(world.heavy_cruiser_inC/2)
-    world.battlecruiser_inC = int(world.battlecruiser_inC/2)
-    world.battleship_inC = int(world.battleship_inC/2)
-    world.dreadnought_inC = int(world.dreadnought_inC/2)
-    world.fighters_inD = int(world.fighters_inD/2)
-    world.corvette_inD = int(world.corvette_inD/2)
-    world.light_cruiser_inD = int(world.light_cruiser_inD/2)
-    world.destroyer_inD = int(world.destroyer_inD/2)
-    world.frigate_inD = int(world.frigate_inD/2)
-    world.heavy_cruiser_inD = int(world.heavy_cruiser_inD/2)
-    world.battlecruiser_inD = int(world.battlecruiser_inD/2)
-    world.battleship_inD = int(world.battleship_inD/2)
-    world.dreadnought_inD = int(world.dreadnought_inD/2)
-    world.fighters_inS = int(world.fighters_inS/2)
-    world.corvette_inS = int(world.corvette_inS/2)
-    world.light_cruiser_inS = int(world.light_cruiser_inS/2)
-    world.destroyer_inS = int(world.destroyer_inS/2)
-    world.frigate_inS = int(world.frigate_inS/2)
-    world.heavy_cruiser_inS = int(world.heavy_cruiser_inS/2)
-    world.battlecruiser_inS = int(world.battlecruiser_inS/2)
-    world.battleship_inS = int(world.battleship_inS/2)
-    world.dreadnought_inS = int(world.dreadnought_inS/2)
-    world.fighters_inH = int(world.fighters_inH/2)
-    world.corvette_inH = int(world.corvette_inH/2)
-    world.light_cruiser_inH = int(world.light_cruiser_inH/2)
-    world.destroyer_inH = int(world.destroyer_inH/2)
-    world.frigate_inH = int(world.frigate_inH/2)
-    world.heavy_cruiser_inH = int(world.heavy_cruiser_inH/2)
-    world.battlecruiser_inH = int(world.battlecruiser_inH/2)
-    world.battleship_inH = int(world.battleship_inH/2)
-    world.dreadnought_inH = int(world.dreadnought_inH/2)
+    from utilities import atomic_fleet
+    for f in world.controlled_fleets.all().filter(world=world):
+        actions = {'set': {}}
+        for ship in v.shipindices:
+            actions['set'].update({ship: f.__dict__[ship] / 2})
+        atomic_fleet(f.pk, actions)
     world.save()
 
     data = "The people have finally risen up and deposed their hated ruler! Half your fleet has defected, \

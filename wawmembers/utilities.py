@@ -1,12 +1,13 @@
 # Django Imports
 from django.db.models import F
+from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
 
 # Python Imports
 import decimal, random, math, datetime
 
 # WaW Imports
-from wawmembers.models import World, Alliance, Spy, War, NewsItem, Task, Agreement
+from wawmembers.models import *
 import wawmembers.display as display
 import wawmembers.variables as v
 import wawmembers.turnupdates as update
@@ -29,7 +30,8 @@ def plural(word, amount):
     else:
         return word + 's'
 
-
+#this shit heidi
+#what the fuck
 def levellist():
     'Returns a list of millevels.'
     return v.millevel('cor'), v.millevel('lcr'), v.millevel('des'), v.millevel('fri'), \
@@ -46,139 +48,48 @@ def timedeltadivide(timediff):
     return hours, minutes, seconds
 
 
-def mildisplaylist(world):
+def mildisplaylist(world, main=True):
     'Formats data for display on a world page.'
     # displays ships in regions, home region first
-    currentA, maximumA = trainingstatus(world, 'A')
-    shiplistA = regionshiplist(world, 'A')
-    fuelcostA = warpfuelcost(shiplistA)
-    if currentA > maximumA:
-        world.fleet_inA_training = maximumA
-    if currentA < 0:
-        world.fleet_inA_training = 0
-    trainingA = display.training_display(currentA, maximumA)
-    wearinessA = display.weariness_display(world.fleet_inA_weariness)
-    powerA = militarypower(world, 'A')
-    pwfA = militarypowerwfuel(world, 'A')
-    psinA = flagshipregion(world, 'A')
-
-    currentB, maximumB = trainingstatus(world, 'B')
-    shiplistB = regionshiplist(world, 'B')
-    fuelcostB = warpfuelcost(shiplistB)
-    if currentB > maximumB:
-        world.fleet_inB_training = maximumB
-    if currentB < 0:
-        world.fleet_inB_training = 0
-    trainingB = display.training_display(currentB, maximumB)
-    wearinessB = display.weariness_display(world.fleet_inB_weariness)
-    powerB = militarypower(world, 'B')
-    pwfB = militarypowerwfuel(world, 'B')
-    psinB = flagshipregion(world, 'B')
-
-    currentC, maximumC = trainingstatus(world, 'C')
-    shiplistC = regionshiplist(world, 'C')
-    fuelcostC = warpfuelcost(shiplistC)
-    if currentC > maximumC:
-        world.fleet_inC_training = maximumC
-    if currentC < 0:
-        world.fleet_inC_training = 0
-    trainingC = display.training_display(currentC, maximumC)
-    wearinessC = display.weariness_display(world.fleet_inC_weariness)
-    powerC = militarypower(world, 'C')
-    pwfC = militarypowerwfuel(world, 'C')
-    psinC = flagshipregion(world, 'C')
-
-    currentD, maximumD = trainingstatus(world, 'D')
-    shiplistD = regionshiplist(world, 'D')
-    fuelcostD = warpfuelcost(shiplistD)
-    if currentD > maximumD:
-        world.fleet_inD_training = maximumD
-    if currentD < 0:
-        world.fleet_inD_training = 0
-    trainingD = display.training_display(currentD, maximumD)
-    wearinessD = display.weariness_display(world.fleet_inD_weariness)
-    powerD = militarypower(world, 'D')
-    pwfD = militarypowerwfuel(world, 'D')
-    psinD = flagshipregion(world, 'D')
-
-    currentH, maximumH = trainingstatus(world, 'H')
-    shiplistH = regionshiplist(world, 'H')
-    if currentH > maximumH:
-        world.fleet_inH_training = maximumH
-    if currentH < 0:
-        world.fleet_inH_training = 0
-    trainingH = display.training_display(currentH, maximumH)
-    powerH = militarypower(world, 'H')
-
-    currentS, maximumS = trainingstatus(world, 'S')
-    shiplistS = regionshiplist(world, 'S')
-    fuelcostS = warpfuelcost(shiplistS)
-    if currentS > maximumS:
-        world.fleet_inS_training = maximumS
-    if currentS < 0:
-        world.fleet_inS_training = 0
-    trainingS = display.training_display(currentS, maximumS)
-    powerS = militarypower(world, 'S')
-    pwfS = militarypowerwfuel(world, 'S')
-
-    world.save(update_fields=['fleet_inA_training','fleet_inB_training','fleet_inC_training',
-        'fleet_inD_training','fleet_inH_training','fleet_inS_training'])
-
-    list1 = ['Amyntas', world.fleetname_inA] + shiplistA + [trainingA, wearinessA, fuelcostA, powerA, world.freighter_inA, pwfA, psinA]
-    list2 = ['Bion', world.fleetname_inB] + shiplistB + [trainingB, wearinessB, fuelcostB, powerB, world.freighter_inB, pwfB, psinB]
-    list3 = ['Cleon', world.fleetname_inC] + shiplistC + [trainingC, wearinessC, fuelcostC, powerC, world.freighter_inC, pwfC, psinC]
-    list4 = ['Draco', world.fleetname_inD] + shiplistD + [trainingD, wearinessD, fuelcostD, powerD, world.freighter_inD, pwfD, psinD]
-    list5 = ['Hangars',world.fleetname_inH] + shiplistH + [trainingH, '-', '-', powerH, 0, powerH, False]
-    list6 = ['Staging',world.fleetname_inS] + shiplistS + [trainingS, '-', fuelcostS, powerS, world.freighter_inS, pwfS, False]
-
-    if world.region == 'A':
-        return list1, list6, list2, list3, list4, list5
-    elif world.region == 'B':
-        return list2, list6, list1, list3, list4, list5
-    elif world.region == 'C':
-        return list3, list6, list1, list2, list4, list5
-    elif world.region == 'D':
-        return list4, list6, list1, list2, list3, list5
-
-
-def regionshiplist(world, region):
-    'Gets list of ships by region.'
-    if region == 'A':
-        shiplist = [world.fighters_inA, world.corvette_inA, world.light_cruiser_inA, world.destroyer_inA, world.frigate_inA,
-                    world.heavy_cruiser_inA, world.battlecruiser_inA, world.battleship_inA, world.dreadnought_inA]
-    if region == 'B':
-        shiplist = [world.fighters_inB, world.corvette_inB, world.light_cruiser_inB, world.destroyer_inB, world.frigate_inB,
-                    world.heavy_cruiser_inB, world.battlecruiser_inB, world.battleship_inB, world.dreadnought_inB]
-    if region == 'C':
-        shiplist = [world.fighters_inC, world.corvette_inC, world.light_cruiser_inC, world.destroyer_inC, world.frigate_inC,
-                    world.heavy_cruiser_inC, world.battlecruiser_inC, world.battleship_inC, world.dreadnought_inC]
-    if region == 'D':
-        shiplist = [world.fighters_inD, world.corvette_inD, world.light_cruiser_inD, world.destroyer_inD,world.frigate_inD,
-                    world.heavy_cruiser_inD, world.battlecruiser_inD, world.battleship_inD, world.dreadnought_inD]
-    if region == 'H':
-        shiplist = [world.fighters_inH, world.corvette_inH, world.light_cruiser_inH, world.destroyer_inH,world.frigate_inH,
-                    world.heavy_cruiser_inH, world.battlecruiser_inH, world.battleship_inH, world.dreadnought_inH]
-    if region == 'S':
-        shiplist = [world.fighters_inS, world.corvette_inS, world.light_cruiser_inS, world.destroyer_inS,world.frigate_inS,
-                    world.heavy_cruiser_inS, world.battlecruiser_inS, world.battleship_inS, world.dreadnought_inS]
-    return shiplist
-
-
-def checkno(amount, allowzero=False):
-    'Checks if input is a number.'
-    try:
-        amount = int(amount)
-    except:
-        return False
+    fleets = world.controlled_fleets.all().exclude(sector="warping")
+    milinfo = {
+    'amyntas': {'max': 0, 'current': 0, 'training': 0, 'power': 0, 'training-level': 0, 
+        'totalships': fleet(world=world), 'fuelcost': 0, 'weariness': 0, 'fleets': 0},
+    'bion': {'max': 0, 'current': 0, 'training': 0, 'power': 0, 'training-level': 0, 
+        'totalships': fleet(world=world), 'fuelcost': 0, 'weariness': 0, 'fleets': 0},
+    'cleon': {'max': 0, 'current': 0, 'training': 0, 'power': 0, 'training-level': 0, 
+        'totalships': fleet(world=world), 'fuelcost': 0, 'weariness': 0, 'fleets': 0},
+    'draco': {'max': 0, 'current': 0, 'training': 0, 'power': 0, 'training-level': 0, 
+        'totalships': fleet(world=world), 'fuelcost': 0, 'weariness': 0, 'fleets': 0},
+    }
+    if main:
+        milinfo.update({'hangar': {'max': 0, 'current': 0, 'training': 0, 'power': 0, 'training-level': 0, 
+        'totalships': fleet(world=world), 'fuelcost': 0, 'weariness': 0, 'fleets': 0}})
     else:
-        if allowzero and amount < 0:
-            return False
-        elif not allowzero and amount < 1:
-            return False
+        fleets = fleets.exclude(sector="hangar")
+    for f in fleets:
+        milinfo[f.sector]['fuelcost'] += f.fuelcost()
+        milinfo[f.sector]['max'] += f.maxtraining()
+        milinfo[f.sector]['current'] += f.training
+        if f.enoughfuel():
+            milinfo[f.sector]['power'] += f.power()
         else:
-            return True
+            milinfo[f.sector]['power'] += f.powerfuel()
+        milinfo[f.sector]['totalships'].merge(f)
+        milinfo[f.sector]['weariness'] += f.weariness
+        milinfo[f.sector]['fleets'] += 1
+    #set training level per sector
+    for field in milinfo:
+        milinfo[field]['training-level'] = display.training_display(milinfo[field]['current'], milinfo[field]['max'])
+    #now make it easy to display by assembling display order
+    displayorder = [world.sector]
+    for field in sorted(milinfo):
+        if field not in displayorder:
+            displayorder.append(field)
+    #django loves tuples
+    return (milinfo, displayorder)
 
-
+#legacy
 def formshiplist(millevel, shiplist, freighters=False):
     'Splits shiplist for forms according to military level.'
 
@@ -204,225 +115,193 @@ def formshiplist(millevel, shiplist, freighters=False):
 
     return choices
 
+#setting fleets after exchanging ships
+def exchange_set(target, ratio, data, highest): #fleet, other fleets ratio and cleaned form data
+    #first off determine the training that needs to be transferred and subtracted
+    referenceratio = target.ratio()
+    shipsin = fleet() #ships that gets added
+    shipsout = fleet()
+    change = {}
+    for ship in v.shipindices[:v.shipindices.index(highest)+1]:
+        key = "%s %s" % (target.pk, ship)
+        print target.__dict__[ship] - data[key], ship
+        if target.__dict__[ship] - data[key] > 0:
+            shipsin.__dict__[ship] = target.__dict__[ship] - data[key]
+        elif target.__dict__[ship] - data[key] < 0:
+            shipsout.__dict__[ship] = target.__dict__[ship] - data[key]
+    shipsout.training = shipsout.maxtraining() * referenceratio
+    target.merge(shipsout)
+    shipsin.training = shipsin.maxtraining() * ratio
+    target.training = (target.maxtraining() * referenceratio) + shipsin.training
+    for ship in v.shipindices[:v.shipindices.index(highest)+1]:
+        key = "%s %s" % (target.pk, ship)
+        target.__dict__[ship] = data[key]
 
-def flagshipregion(world, region):
-    'Checks if a flagship is in the region.'
-    if world.flagshiptype != 0 and world.flagshiplocation == region:
-        return True
-    else:
-        return False
+
+
+#returns initial data for fleet exchange page
+def fleetinit(fleet1, fleet2):
+    init = {}
+    for ship in v.shipindices:
+        init.update({
+            '%s %s' % (fleet1.pk, ship): fleet1.__dict__[ship],
+            '%s %s' % (fleet2.pk, ship): fleet2.__dict__[ship],
+            })
+    return init
+
+#######################
+### ATOMIC TRANSACTIONS
+#######################
+
+#takes a dictionary of actions to take and a primary key to a world and target world
+#where said actions are to be taken
+#this should avoid race conditions entirely
+def atomic_world(pk, actions, targetpk=None):
+    with transaction.atomic():
+        updatelist = []
+        if targetpk is not None:
+            world = World.objects.select_for_update().get(pk=pk)
+            targetworld = World.objects.select_for_update().get(pk=targetpk)
+            #first we do stuff
+            for field in actions:
+                if actions[field]['action'] is 'subtract':
+                    targetworld.__dict__[field] -= actions[field]['amount']
+                    world.__dict__[field] += actions[field]['amount']
+                else:
+                    targetworld.__dict__[field] += actions[field]['amount']
+                    world.__dict__[field] -= actions[field]['amount']
+                #then we assemble a list of fields to update
+                updatelist.append(field)
+            targetworld.save(update_fields=updatelist)
+        else:
+            world = World.objects.select_for_update().get(pk=pk)
+            for field in actions:
+                if actions[field]['action'] is 'subtract':
+                    world.__dict__[field] -= actions[field]['amount']
+                elif actions[field]['action'] is 'add':
+                    world.__dict__[field] += actions[field]['amount']
+                else:
+                    world.__dict__[field] = actions[field]['amount']
+                #then we assemble a list of fields to update
+                updatelist.append(field)
+        world.save(update_fields=updatelist)
+
+#takes fleet pk, actions and a pk to target if any
+def atomic_fleet(pk, actions, targetpk=None):
+    with transaction.atomic():
+        playerfleet = fleet.objects.select_for_update().get(pk=pk)
+        updatelist = []
+        if 'train' in actions:
+            playerfleet.train()
+            updatelist.append('training')
+            #training is 2 part, money subtraction is a seperate function call
+        elif 'warp' in actions:
+            playerfleet.sector = "warping"
+            updatelist.append('sector')
+
+        elif 'add' in actions:
+            for field in actions['add']:
+                playerfleet.__dict__[field] += actions['add'][field]
+                updatelist.append(field)
+
+        elif 'subtractships' in actions:
+            ratio = playerfleet.ratio() #to set new 
+            for field in actions['subtractships']:
+                playerfleet.__dict__[field] -= actions['subtractships'][field]
+                updatelist.append(field)
+            playerfleet.training = int(ratio * playerfleet.maxtraining())
+            playerfleet.attacked = True
+            updatelist += ['training', 'attacked']
+
+        elif 'set' in actions:
+            for field in actions['set']:
+                playerfleet.__dict__[field] = actions['set'][field]
+            if 'controller' in actions['set']: #doesn't work with the above for some raisin
+                playerfleet.controller = actions['set']['controller']
+
+        elif 'mergeaid' in actions: #merging single ship aid
+            mergerfleet = fleet.objects.get(pk=targetpk)
+            playerfleet.merge(mergerfleet)
+            mergerfleet.delete()
+        elif 'merge' in actions:
+            mergerfleet = fleet.objects.select_for_update().get(pk=targetpk)
+            playerfleet.merge(mergerfleet)
+            mergerfleet.save()
+        elif 'mergeorder' in actions:
+            playerfleet.mergeorder(actions['mergeorder'])
+        elif 'loss' in actions:
+            playerfleet.loss(actions['loss'])
+            playerfleet.attacked = True
+            playerfleet.train() #only called after combat and combat ++training;
+        elif 'add' in actions:
+            for field in actions['add']:
+                playerfleet.__dict__[field] += actions['add'][field]
+
+        if updatelist:
+            playerfleet.save(update_fields=updatelist)
+        else:
+            playerfleet.save()
 
 
 ###################
 ### QUANTITY CHANGE
 ###################
 
-def polsystemchange(world, amount):
-    'Adds political system to a world.'
-    if world.polsystem + amount > 100:
-        world.polsystem = 100
-    elif world.polsystem + amount < -100:
-        world.polsystem = -100
+def attrchange(current, amount, zero=False):
+    if current + amount > 100: #return the amount required to reach 100 and -100 respectively
+        return amount - (current + amount - 100)
+    elif current + amount < -100:
+        return amount - (current + amount + 100)
+    elif zero and current + amount < 0:
+        return amount - (current + amount)
     else:
-        world.polsystem = F('polsystem') + amount
-    world.save(update_fields=['polsystem'])
-
-
-def contentmentchange(world, amount):
-    'Adds contentment to a world.'
-    if world.contentment + amount > 100:
-        world.contentment = 100
-    elif world.contentment + amount < -100:
-        world.contentment = -100
-    else:
-        world.contentment = F('contentment') + amount
-    world.save(update_fields=['contentment'])
-
-
-def stabilitychange(world, amount):
-    'Adds stability to a world.'
-    if world.stability + amount > 100:
-        world.stability = 100
-    elif world.stability + amount < -100:
-        world.stability = -100
-    else:
-        world.stability = F('stability') + amount
-    world.save(update_fields=['stability'])
-
-
-def qolchange(world, amount):
-    'Adds qol to a world.'
-    if world.qol + amount > 100:
-        world.qol = 100
-    elif world.qol + amount < -100:
-        world.qol = -100
-    else:
-        world.qol = F('qol') + amount
-    world.save(update_fields=['qol'])
-
-
-def rebelschange(world, amount):
-    'Adds rebel amount to a world.'
-    if world.rebels + amount > 100:
-        world.rebels = 100
-    elif world.rebels + amount < 0:
-        world.rebels = 0
-    else:
-        world.rebels = F('rebels') + amount
-    world.save(update_fields=['rebels'])
-
-
-def trainingchange(world, region, amount):
-    'Adds training to a region.'
-    if region == 'A':
-        if world.fleet_inA_training + amount < 0:
-            world.fleet_inA_training = 0
-        else:
-            world.fleet_inA_training = F('fleet_inA_training') + amount
-        world.save(update_fields=['fleet_inA_training'])
-    elif region == 'B':
-        if world.fleet_inB_training + amount < 0:
-            world.fleet_inB_training = 0
-        else:
-            world.fleet_inB_training = F('fleet_inB_training') + amount
-        world.save(update_fields=['fleet_inB_training'])
-    elif region == 'C':
-        if world.fleet_inC_training + amount < 0:
-            world.fleet_inC_training = 0
-        else:
-            world.fleet_inC_training = F('fleet_inC_training') + amount
-        world.save(update_fields=['fleet_inC_training'])
-    elif region == 'D':
-        if world.fleet_inD_training + amount < 0:
-            world.fleet_inD_training = 0
-        else:
-            world.fleet_inD_training = F('fleet_inD_training') + amount
-        world.save(update_fields=['fleet_inD_training'])
-    elif region == 'H':
-        if world.fleet_inH_training + amount < 0:
-            world.fleet_inH_training = 0
-        else:
-            world.fleet_inH_training = F('fleet_inH_training') + amount
-        world.save(update_fields=['fleet_inH_training'])
-    elif region == 'S':
-        if world.fleet_inS_training + amount < 0:
-            world.fleet_inS_training = 0
-        else:
-            world.fleet_inS_training = F('fleet_inS_training') + amount
-        world.save(update_fields=['fleet_inS_training'])
-
-
-def wearinesschange(world, region, amount):
-    'Adds weariness to region.'
-    if region == 'A':
-        if world.fleet_inA_weariness + amount > 200:
-            world.fleet_inA_weariness = 200
-        elif world.fleet_inA_weariness + amount < 0:
-            world.fleet_inA_weariness = 0
-        else:
-            world.fleet_inA_weariness = F('fleet_inA_weariness') + amount
-        world.save(update_fields=['fleet_inA_weariness'])
-    if region == 'B':
-        if world.fleet_inB_weariness + amount > 200:
-            world.fleet_inB_weariness = 200
-        elif world.fleet_inB_weariness + amount < 0:
-            world.fleet_inB_weariness = 0
-        else:
-            world.fleet_inB_weariness = F('fleet_inB_weariness') + amount
-        world.save(update_fields=['fleet_inB_weariness'])
-    if region == 'C':
-        if world.fleet_inC_weariness + amount > 200:
-            world.fleet_inC_weariness = 200
-        elif world.fleet_inC_weariness + amount < 0:
-            world.fleet_inC_weariness = 0
-        else:
-            world.fleet_inC_weariness = F('fleet_inC_weariness') + amount
-        world.save(update_fields=['fleet_inC_weariness'])
-    if region == 'D':
-        if world.fleet_inD_weariness + amount > 200:
-            world.fleet_inD_weariness = 200
-        elif world.fleet_inD_weariness + amount < 0:
-            world.fleet_inD_weariness = 0
-        else:
-            world.fleet_inD_weariness = F('fleet_inD_weariness') + amount
-        world.save(update_fields=['fleet_inD_weariness'])
-
+        return amount
 
 ############
 ### POLICIES
 ############
 
-def generalbuild(world, shiptype, amount):
-    'Gets variables for shiptype and delegates to build function.'
-    cost, dur, trit, adam, yards, hours, x = v.shipcosts(world.region, shiptype)
-    result = processship(world, shiptype, amount, cost, dur, trit, adam, yards, hours)
-    return result
-
-
-def processship(world, shiptype, amount, cost, dur, trit, adam, yards, hours):
-    'Starts to builds ships.'
-    from wawmembers.tasks import buildship
-    from wawmembers.taskgenerator import buildship as databuildship
-    outcometime = v.now() + datetime.timedelta(hours=hours)
-    if not checkno(amount):
-        result = "Enter a positive integer."
-    else:
-        amount = int(amount)
-        if world.budget < D(cost*amount):
-            result = outcomes.nomoney()
-        elif (world.shipyards - world.shipyardsinuse) < yards*amount:
-            result = outcomes.notenoughshipyards()
-        elif world.duranium < dur*amount:
-            result = outcomes.notenoughduranium()
-        elif world.tritanium < trit*amount:
-            result = outcomes.notenoughtritanium()
-        elif world.adamantium < adam*amount:
-            result = outcomes.notenoughadamantium()
+#checks if the player can afford to build the ships and returns cost + status
+def costcheck(world, order):
+    cost = {
+        'geu': 0,
+        'duranium': 0,
+        'tritanium': 0,
+        'adamantium': 0,
+        'productionpoints': 0,
+    }
+    status = cost.copy()
+    shipcosts = v.shipcosts(world.sector)
+    assets = world.buildcapacity()
+    goodtogo = True
+    #calculate dem costs
+    for ship, amount in order.iteritems():
+        if amount > 0:
+            for key in cost:
+                cost[key] += shipcosts[ship][key] * amount
+    #compare to current assets
+    for key in assets:
+        if assets[key] < cost[key]:
+            status[key] = False #not enough of a given resource
+            goodtogo = False
         else:
-            world.budget = F('budget') - D(cost*amount)
-            world.duranium = F('duranium') - dur*amount
-            world.tritanium = F('tritanium') - trit*amount
-            world.adamantium = F('adamantium') - adam*amount
-            world.shipyardsinuse = F('shipyardsinuse') + yards*amount
-            world.save(update_fields=['budget','duranium','tritanium','adamantium','shipyardsinuse'])
-            task = Task(target=world, content=databuildship(shiptype,amount), datetime=outcometime)
-            task.save()
-            buildship.apply_async(args=(world.worldid, task.pk, shiptype, amount, yards), eta=outcometime)
-            result = outcomes.startshipbuild(shiptype,amount)
-    return result
-
+            status[key] = True
+    status.update({'status': goodtogo, 'cost': cost})
+    return status
 
 def rescosts(world):
     'Calculates resource costs.'
-    if world.region == 'C':
-        warp = 200 + 4*world.warpfuelprod
-        dur = 250 + 45*world.duraniumprod
-        trit = 600 + 90*world.tritaniumprod
-        adam = 750 + 225*world.adamantiumprod
+    if world.sector == 'cleon':
+        warp = 350 + 2*world.warpfuelprod
+        dur = 500 + 8*world.duraniumprod
+        trit = 900 + 18*world.tritaniumprod
+        adam = 1450 + 35*world.adamantiumprod
     else:
-        warp = 200 + 5*world.warpfuelprod
-        dur = 250 + 50*world.duraniumprod
-        trit = 600 + 100*world.tritaniumprod
-        adam = 750 + 250*world.adamantiumprod
-    res = 10*world.resourceproduction
-    return warp, dur, trit, adam, res
-
-
-def shipdata(region, shiptype):
-    'Returns ship data for use on military policies page.'
-    cost, dur, trit, adam, shipyards, hours, fuel = v.shipcosts(region, shiptype)
-
-    restext = 'Resources:'
-    if dur > 0:
-        restext += ' %s duranium' % dur
-    if trit > 0:
-        restext += ', %s tritanium' % trit
-    if adam > 0:
-        restext += ', %s adamantium' % adam
-
-    datalist = ['Cost: %s GEU' % cost, restext, 'Shipyards: %s' % shipyards, 'Time: %s hours' % hours, 'Base fuel cost: %s' % fuel]
-
-    return datalist
+        warp = 400 + 2.5*world.warpfuelprod
+        dur = 600 + 10*world.duraniumprod
+        trit = 1000 + 20*world.tritaniumprod
+        adam = 1750 + 40*world.adamantiumprod
+    return warp, dur, trit, adam
 
 
 def martiallawadd(world):
@@ -461,68 +340,6 @@ def rumsoddiumhandout():
             of rumsoddium! What luck!')
 
 
-############
-### TRAINING
-############
-
-def trainingstatus(world, region):
-    'Returns current and maximum training for a region.'
-    if region == 'A':
-        current = world.fleet_inA_training
-        maximum = trainingfromlist(regionshiplist(world,'A'))
-    elif region == 'B':
-        current = world.fleet_inB_training
-        maximum = trainingfromlist(regionshiplist(world,'B'))
-    elif region == 'C':
-        current = world.fleet_inC_training
-        maximum = trainingfromlist(regionshiplist(world,'C'))
-    elif region == 'D':
-        current = world.fleet_inD_training
-        maximum = trainingfromlist(regionshiplist(world,'D'))
-    elif region == 'H':
-        current = world.fleet_inH_training
-        maximum = trainingfromlist(regionshiplist(world,'H'))
-    elif region == 'S':
-        current = world.fleet_inS_training
-        maximum = trainingfromlist(regionshiplist(world,'S'))
-
-    return current, maximum
-
-
-def trainingfromlist(listships):
-    'Returns the maximum training of a list of ships.'
-    return (listships[0] + 2*listships[1] + 4*listships[2] + 6*listships[3] + 8*listships[4] +
-         12*listships[5] + 18*listships[6] + 30*listships[7] + 50*listships[8]) * 10
-
-
-def trainingcost(world, region):
-    'Calculates training cost by region.'
-    current, maximum = trainingstatus(world, region)
-    try:
-        ratio = float(current)/float(maximum)
-    except:
-        ratio = 0
-
-    cost = (maximum * ratio / 1.5) + 10
-    cost = D(cost).quantize(D('.1'))
-
-    return cost
-
-
-def trainingchangecalc(world, region, shiptype, amount):
-    'Calculates trainingchange for warps etc.'
-    current, maximum = trainingstatus(world, region)
-    listships = [0,0,0,0,0,0,0,0,0]
-    listships[shiptype-1] = amount
-    trainingloss = trainingfromlist(listships)
-    try:
-        ratio = float(current)/float(maximum)
-    except:
-        ratio = 0
-    loss = trainingloss*ratio
-    return int(round(loss))
-
-
 #############
 ### ALLIANCES
 #############
@@ -540,7 +357,7 @@ def alliancedata(requestdata, allianceid):
         return None, None, None, None
 
     members = alliance.allmember.all()
-    officers = list(members.filter(officer=True))
+    officers = list(members.filter(officer=True).order_by('pk'))
     try:
         leader = members.get(leader=True)
     except:
@@ -599,275 +416,27 @@ def cleanalliance(alliance):
         alliance.delete()
 
 
-#################
-### WARPING SHIPS
-#################
-
-def movecheck(world, shiptype, amount, regionfrom):
-    'Checks if sufficient quantity of a ship is in region.'
-    shiplist = regionshiplist(world, regionfrom)
-    if shiplist[shiptype-1] < amount:
-        return False
-    else:
-        return True
-
-
-def movecomplete(world, shiptype, amount, region, trainingch):
-    'Adds ships to a region.'
-    if region == 'A':
-        if shiptype == 1:
-            world.fighters_inA = F('fighters_inA') + amount
-            world.save(update_fields=['fighters_inA'])
-        if shiptype == 2:
-            world.corvette_inA = F('corvette_inA') + amount
-            world.save(update_fields=['corvette_inA'])
-        if shiptype == 3:
-            world.light_cruiser_inA = F('light_cruiser_inA') + amount
-            world.save(update_fields=['light_cruiser_inA'])
-        if shiptype == 4:
-            world.destroyer_inA = F('destroyer_inA') + amount
-            world.save(update_fields=['destroyer_inA'])
-        if shiptype == 5:
-            world.frigate_inA = F('frigate_inA') + amount
-            world.save(update_fields=['frigate_inA'])
-        if shiptype == 6:
-            world.heavy_cruiser_inA = F('heavy_cruiser_inA') + amount
-            world.save(update_fields=['heavy_cruiser_inA'])
-        if shiptype == 7:
-            world.battlecruiser_inA = F('battlecruiser_inA') + amount
-            world.save(update_fields=['battlecruiser_inA'])
-        if shiptype == 8:
-            world.battleship_inA = F('battleship_inA') + amount
-            world.save(update_fields=['battleship_inA'])
-        if shiptype == 9:
-            world.dreadnought_inA = F('dreadnought_inA') + amount
-            world.save(update_fields=['dreadnought_inA'])
-
-    if region == 'B':
-        if shiptype == 1:
-            world.fighters_inB = F('fighters_inB') + amount
-            world.save(update_fields=['fighters_inB'])
-        if shiptype == 2:
-            world.corvette_inB = F('corvette_inB') + amount
-            world.save(update_fields=['corvette_inB'])
-        if shiptype == 3:
-            world.light_cruiser_inB = F('light_cruiser_inB') + amount
-            world.save(update_fields=['light_cruiser_inB'])
-        if shiptype == 4:
-            world.destroyer_inB = F('destroyer_inB') + amount
-            world.save(update_fields=['destroyer_inB'])
-        if shiptype == 5:
-            world.frigate_inB = F('frigate_inB') + amount
-            world.save(update_fields=['frigate_inB'])
-        if shiptype == 6:
-            world.heavy_cruiser_inB = F('heavy_cruiser_inB') + amount
-            world.save(update_fields=['heavy_cruiser_inB'])
-        if shiptype == 7:
-            world.battlecruiser_inB = F('battlecruiser_inB') + amount
-            world.save(update_fields=['battlecruiser_inB'])
-        if shiptype == 8:
-            world.battleship_inB = F('battleship_inB') + amount
-            world.save(update_fields=['battleship_inB'])
-        if shiptype == 9:
-            world.dreadnought_inB = F('dreadnought_inB') + amount
-            world.save(update_fields=['dreadnought_inB'])
-
-    if region == 'C':
-        if shiptype == 1:
-            world.fighters_inC = F('fighters_inC') + amount
-            world.save(update_fields=['fighters_inC'])
-        if shiptype == 2:
-            world.corvette_inC = F('corvette_inC') + amount
-            world.save(update_fields=['corvette_inC'])
-        if shiptype == 3:
-            world.light_cruiser_inC = F('light_cruiser_inC') + amount
-            world.save(update_fields=['light_cruiser_inC'])
-        if shiptype == 4:
-            world.destroyer_inC = F('destroyer_inC') + amount
-            world.save(update_fields=['destroyer_inC'])
-        if shiptype == 5:
-            world.frigate_inC = F('frigate_inC') + amount
-            world.save(update_fields=['frigate_inC'])
-        if shiptype == 6:
-            world.heavy_cruiser_inC = F('heavy_cruiser_inC') + amount
-            world.save(update_fields=['heavy_cruiser_inC'])
-        if shiptype == 7:
-            world.battlecruiser_inC = F('battlecruiser_inC') + amount
-            world.save(update_fields=['battlecruiser_inC'])
-        if shiptype == 8:
-            world.battleship_inC = F('battleship_inC') + amount
-            world.save(update_fields=['battleship_inC'])
-        if shiptype == 9:
-            world.dreadnought_inC = F('dreadnought_inC') + amount
-            world.save(update_fields=['dreadnought_inC'])
-
-    if region == 'D':
-        if shiptype == 1:
-            world.fighters_inD = F('fighters_inD') + amount
-            world.save(update_fields=['fighters_inD'])
-        if shiptype == 2:
-            world.corvette_inD = F('corvette_inD') + amount
-            world.save(update_fields=['corvette_inD'])
-        if shiptype == 3:
-            world.light_cruiser_inD = F('light_cruiser_inD') + amount
-            world.save(update_fields=['light_cruiser_inD'])
-        if shiptype == 4:
-            world.destroyer_inD = F('destroyer_inD') + amount
-            world.save(update_fields=['destroyer_inD'])
-        if shiptype == 5:
-            world.frigate_inD = F('frigate_inD') + amount
-            world.save(update_fields=['frigate_inD'])
-        if shiptype == 6:
-            world.heavy_cruiser_inD = F('heavy_cruiser_inD') + amount
-            world.save(update_fields=['heavy_cruiser_inD'])
-        if shiptype == 7:
-            world.battlecruiser_inD = F('battlecruiser_inD') + amount
-            world.save(update_fields=['battlecruiser_inD'])
-        if shiptype == 8:
-            world.battleship_inD = F('battleship_inD') + amount
-            world.save(update_fields=['battleship_inD'])
-        if shiptype == 9:
-            world.dreadnought_inD = F('dreadnought_inD') + amount
-            world.save(update_fields=['dreadnought_inD'])
-
-    if region == 'H':
-        if shiptype == 1:
-            world.fighters_inH = F('fighters_inH') + amount
-            world.save(update_fields=['fighters_inH'])
-        if shiptype == 2:
-            world.corvette_inH = F('corvette_inH') + amount
-            world.save(update_fields=['corvette_inH'])
-        if shiptype == 3:
-            world.light_cruiser_inH = F('light_cruiser_inH') + amount
-            world.save(update_fields=['light_cruiser_inH'])
-        if shiptype == 4:
-            world.destroyer_inH = F('destroyer_inH') + amount
-            world.save(update_fields=['destroyer_inH'])
-        if shiptype == 5:
-            world.frigate_inH = F('frigate_inH') + amount
-            world.save(update_fields=['frigate_inH'])
-        if shiptype == 6:
-            world.heavy_cruiser_inH = F('heavy_cruiser_inH') + amount
-            world.save(update_fields=['heavy_cruiser_inH'])
-        if shiptype == 7:
-            world.battlecruiser_inH = F('battlecruiser_inH') + amount
-            world.save(update_fields=['battlecruiser_inH'])
-        if shiptype == 8:
-            world.battleship_inH = F('battleship_inH') + amount
-            world.save(update_fields=['battleship_inH'])
-        if shiptype == 9:
-            world.dreadnought_inH = F('dreadnought_inH') + amount
-            world.save(update_fields=['dreadnought_inH'])
-
-    if region == 'S':
-        if shiptype == 1:
-            world.fighters_inS = F('fighters_inS') + amount
-            world.save(update_fields=['fighters_inS'])
-        if shiptype == 2:
-            world.corvette_inS = F('corvette_inS') + amount
-            world.save(update_fields=['corvette_inS'])
-        if shiptype == 3:
-            world.light_cruiser_inS = F('light_cruiser_inS') + amount
-            world.save(update_fields=['light_cruiser_inS'])
-        if shiptype == 4:
-            world.destroyer_inS = F('destroyer_inS') + amount
-            world.save(update_fields=['destroyer_inS'])
-        if shiptype == 5:
-            world.frigate_inS = F('frigate_inS') + amount
-            world.save(update_fields=['frigate_inS'])
-        if shiptype == 6:
-            world.heavy_cruiser_inS = F('heavy_cruiser_inS') + amount
-            world.save(update_fields=['heavy_cruiser_inS'])
-        if shiptype == 7:
-            world.battlecruiser_inS = F('battlecruiser_inS') + amount
-            world.save(update_fields=['battlecruiser_inS'])
-        if shiptype == 8:
-            world.battleship_inS = F('battleship_inS') + amount
-            world.save(update_fields=['battleship_inS'])
-        if shiptype == 9:
-            world.dreadnought_inS = F('dreadnought_inS') + amount
-            world.save(update_fields=['dreadnought_inS'])
-
-    trainingchange(world, region, trainingch)
-
-
 ###########
 ### ECONOMY
 ###########
-
-def lolindexoutcome(world, lol, lolindex):
-    'Calculates growth from trade routes'
-
-    minimum = min([sum(res) for res in lol]) + 2
-    filled = sum([res[lolindex] for res in lol])
-
-    if world.econsystem == 1:
-        if filled == 12:
-            growth = 6
-        elif filled >= 10:
-            growth = 4
-        elif filled >= 5:
-            growth = 2
-        else:
-            growth = 0
-        geu = 0
-
-    elif world.econsystem == 0:
-        if filled == 12:
-            growth = 3
-        elif filled >= 10:
-            growth = 2
-        elif filled >= 5:
-            growth = 1
-        else:
-            growth = 0
-        if lolindex < minimum:
-            geu = 10*filled
-        else:
-            geu = 0
-
-    elif world.econsystem == -1:
-        growth = 0
-        if lolindex < minimum:
-            geu = 20*filled
-        else:
-            geu = 0
-
-    return growth, geu
-
-
-def getownlist(world):
-    'Returns sorted trade routes.'
-    return list(Agreement.objects.filter(sender=world).exclude(order=0).order_by('order')) + \
-        list(Agreement.objects.filter(sender=world).filter(order=0))
-
-
+#takes a list of lists with shipnames and amounts
+#ie [[fighters, 1],[destroyers, 10]]
+def resource_text(resources):
+    text = ""
+    if len(resources) == 1:
+            text = "%s %s" % (resources[0][1], resources[0][0])
+    else:
+        for i, resource in enumerate(resources, 1):
+            text += "%s %s" % (resource[1], resource[0])
+            if len(resources) - 1 == i:
+                text += ' and '
+            else:
+                text += ', '
+        text = text[:-2]
+    return text
 ##########
 ### TRADES
 ##########
-
-def tradeamount(world, resource, amount):
-    'Checks for sufficient resources.'
-    if 'sendhome' in world.shipsortprefs:
-        shiplist = regionshiplist(world, world.region)
-    else:
-        shiplist = regionshiplist(world, 'S')
-    notenough = 'You do not have enough of that resource!'
-
-    if resource == 0 and world.budget < amount:
-        return notenough
-    elif resource == 1 and world.warpfuel < amount:
-        return notenough
-    elif resource == 2 and world.duranium < amount:
-        return notenough
-    elif resource == 3 and world.tritanium < amount:
-        return notenough
-    elif resource == 4 and world.adamantium < amount:
-        return notenough
-    elif 11 <= resource <= 19 and shiplist[resource-11] < amount:
-        return notenough
-    else:
-        return True
 
 
 def tradecost(world, amount):
@@ -885,51 +454,25 @@ def tradecost(world, amount):
         return True
 
 
-def tradeshiptech(world, resource):
-    'Checks for sufficient ship knowledge.'
-    if (resource == 13 and world.millevel < v.millevel('cor')) or \
-     (resource == 14 and world.millevel < v.millevel('lcr')) or \
-     (resource == 15 and world.millevel < v.millevel('des')) or \
-     (resource == 16 and world.millevel < v.millevel('fri')) or \
-     (resource == 17 and world.millevel < v.millevel('hcr')) or \
-     (resource == 18 and world.millevel < v.millevel('bcr')) or \
-     (resource == 19 and world.millevel < v.millevel('bsh')):
-        return 'You do not have the knowledge to operate or maintain such ships!'
-    else:
-        return True
-
-
-def tradeshippower(world, shiptype, amount):
-    'Calculates/allows power being sold.'
-    if shiptype < 11:
-        return True
-    else:
-        listships = [0,0,0,0,0,0,0,0,0]
-        listships[shiptype-11] = amount
-        powerloss = powerfromlist(listships)
-        if powerloss + world.powersent > world.startpower * 0.5:
-            return 'Your generals refuse to let you sell so much of your domestic fleet!'
-        else:
-            world.powersent = F('powersent') + powerloss
-            world.save(update_fields=['powersent'])
-            return True
-
+def militarypower(world, sector):
+    fleets = world.controlled_fleets.all().filter(sector=sector)
+    power = 0
+    for fleet in fleets:
+        power += fleet.basepower()
+    return power
 
 def shippowerdefwars(world, restype):
     'Calculates/allows power being warped.'
-    if restype < 11:
-        return True
-    else:
-        defwars = list(War.objects.filter(defender=world))
-        for war in defwars:
-            own = militarypower(world, war.region)
-            attacker = militarypower(war.attacker, war.region)
-            if own < attacker:
-                return 'Your generals refuse to warp ships away while under attack from a superior force!'
-        return True
+    defwars = list(War.objects.filter(defender=world))
+    for war in defwars:
+        own = militarypower(world, war.sector)
+        attacker = militarypower(war.attacker, war.sector)
+        if own < attacker:
+            return 'Your generals refuse to warp ships away while under attack from a superior force!'
+    return True
 
 
-def resname(resource, amount=1, lower=False):
+def resname(resource, amount=1, lower=False, mapping=False):
     'Returns name from resource number.'
     if resource == 0:
         name = 'GEU'
@@ -941,6 +484,8 @@ def resname(resource, amount=1, lower=False):
         name = 'Tritanium'
     if resource == 4:
         name = 'Adamantium'
+    if resource == 10:
+        name = plural('Freighter', amount)
     if resource == 11:
         name = plural('Fighter', amount)
     if resource == 12:
@@ -960,292 +505,96 @@ def resname(resource, amount=1, lower=False):
     if resource == 19:
         name = plural('Dreadnought', amount)
 
+    #map heidis stupid shit to actual variable names for easy manipulation
+    if mapping:
+        if name == 'GEU':
+            return 'budget'
+        elif resource < 10:
+            return name.lower()
+        else:
+            if name[-1:] == 's':
+                return name.lower()
+            else:
+                return name.lower() + 's'
+
     if lower and resource != 0:
         return name.lower()
     else:
         return name
 
 
-def resourcecompletion(world, resource, amount, trainingchange):
-    'Adds resource/ships.'
-    if resource == 0:
-        world.budget = F('budget') + amount
-        world.save(update_fields=['budget'])
-    elif resource == 1:
-        world.warpfuel = F('warpfuel') + amount
-        world.save(update_fields=['warpfuel'])
-    elif resource == 2:
-        world.duranium = F('duranium') + amount
-        world.save(update_fields=['duranium'])
-    elif resource == 3:
-        world.tritanium = F('tritanium') + amount
-        world.save(update_fields=['tritanium'])
-    elif resource == 4:
-        world.adamantium = F('adamantium') + amount
-        world.save(update_fields=['adamantium'])
-    else:
-        if amount < 0 and 'sendstaging' in world.shipsortprefs or amount > 0 and 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, resource-10, amount, 'S', trainingchange)
-        else:
-            movecomplete(world, resource-10, amount, world.region, trainingchange)
-
-
 def freightercount(resource, amount):
     'Calculates freighters required for transport of resource.'
-    if resource == 1:
-        amount, remainder = divmod(amount, 200)
-    elif resource == 2:
-        amount, remainder = divmod(amount, 20)
-    elif resource == 3:
-        amount, remainder = divmod(amount, 10)
-    elif resource == 4:
-        amount, remainder = divmod(amount, 2)
-    if remainder > 0:
-        amount += 1
-    return amount
+    return ((v.freighter_capacity[resource] * amount) / v.freighter_capacity['total']) + 1 
 
-
-def freighterregion(world, region):
-    'Returns no. of freighters in region.'
-    if region == 'A':
-        return world.freighter_inA
-    if region == 'B':
-        return world.freighter_inB
-    if region == 'C':
-        return world.freighter_inC
-    if region == 'D':
-        return world.freighter_inD
-    if region == 'S':
-        return world.freighter_inS
-
-
-def freightercheck(world, region, amount):
-    'Checks if sufficient freighters in region.'
-    if freighterregion(world, region) >= amount:
-        return True
-    else:
-        return False
-
-
-def freightertradecheck(world, resource, amount):
-    'Checks if freighters for trade.'
-    if resource not in [1, 2, 3, 4]:
-        return 0, True
-
-    count = freightercount(resource, amount)
-    check = freightercheck(world, world.region, count)
-
-    if not check:
-        check = 'You do not have enough freighters to transport these goods!'
-
-    return count, check
-
-
-def freightermove(world, region, amount):
-    'Adds freighters to region.'
-    if region == 'A':
-        world.freighter_inA = F('freighter_inA') + amount
-        world.save(update_fields=['freighter_inA'])
-    if region == 'B':
-        world.freighter_inB = F('freighter_inB') + amount
-        world.save(update_fields=['freighter_inB'])
-    if region == 'C':
-        world.freighter_inC = F('freighter_inC') + amount
-        world.save(update_fields=['freighter_inC'])
-    if region == 'D':
-        world.freighter_inD = F('freighter_inD') + amount
-        world.save(update_fields=['freighter_inD'])
-    if region == 'S':
-        world.freighter_inS = F('freighter_inS') + amount
-        world.save(update_fields=['freighter_inS'])
-
-
-def freighterloss(world, region, amount):
-    'Subtracts freighters from region, dividing between home/staging.'
-    if region == world.region:
-        fhome = freighterregion(world, region)
-        fstaging = freighterregion(world, 'S')
-        home, staging = stagingdivide(amount, fhome, fstaging, 0.5)
-        freightermove(world, region, -home)
-        freightermove(world, 'S', -staging)
-    else:
-        freightermove(world, region, -amount)
 
 
 #######
 ### WAR
 #######
 
-def noweariness(world, region, quantity):
-    if region == "A" and world.fleet_inA_weariness < quantity \
-      or region == "B" and world.fleet_inB_weariness < quantity \
-      or region == "C" and world.fleet_inC_weariness < quantity \
-      or region == "D" and world.fleet_inD_weariness < quantity:
-        return True
-    else:
-        return False
-
-
-def warpfuelcost(shiplist):
-    'Returns fuel cost of a shiplist.'
-    cost = shiplist[0] + 2*shiplist[1] + 3*shiplist[2] + 4*shiplist[3] + 5*shiplist[4] + \
-            6*shiplist[5] + 8*shiplist[6] + 10*shiplist[7] + 15*shiplist[8]
-    return cost
-
-
-def percenttraining(world, region):
-    'Returns percentage training.'
-    current, maximum = trainingstatus(world, region)
-    try:
-        ratio = float(current)/float(maximum)
-    except:
-        ratio = 0
-    modifier = (ratio/10)*5 + 0.5
-    return modifier
-
-
-def percentweariness(world, region):
-    'Returns percentage weariness.'
-    if region == 'A':
-        modifier = (world.fleet_inA_weariness / float(2000))
-    if region == 'B':
-        modifier = (world.fleet_inB_weariness / float(2000))
-    if region == 'C':
-        modifier = (world.fleet_inC_weariness / float(2000))
-    if region == 'D':
-        modifier = (world.fleet_inD_weariness / float(2000))
-    if region == 'S':
-        modifier = (world.fleet_inA_weariness / float(2000))
-    return modifier*5 + 0.5
-
-
-def addbonus(list):
-    'Calculates fleet bonus from a reversed shiplist.'
-    bonuspower = 0
-    for i in range(len(list)):
-        for j in range(i+1,len(list)):
-            if list[j] >= (2**(j-i))*list[i]:
-                bonuspower += (2**(j-i))*list[i]
-            else:
-                bonuspower += list[j]
-    return bonuspower
-
-
-def powerfromlist(shiplist, bonus=True):
-    'Calculates fleet power from a shiplist.'
-    bonuspower = addbonus(shiplist[::-1])
-    fig, cor, lcr, des, fri, hcr, bcr, bsh, dre = shiplist
-
-    if bonus:
-        return bonuspower + fig + 5*cor + 10*lcr + 15*des + 20*fri + 25*hcr + 30*bcr + 35*bsh + 40*dre
-    else:
-        return fig + 5*cor + 10*lcr + 15*des + 20*fri + 25*hcr + 30*bcr + 35*bsh + 40*dre
-
-
-def militarypower(world, region, listships=None, incflagship=True):
-    'Returns fleet power from region or shiplist.'
-
-    shiplist = (listships if listships is not None else regionshiplist(world, region))
-    power = powerfromlist(shiplist)
-
-    if world is not None:
-        if incflagship and flagshipregion(world, region):
-            power += 50
-
+def totalpower(world):
+    fleets = world.controlled_fleets.all().exclude(sector='hangar')
+    power = 0
+    for fleet in fleets:
+        power += fleet.power()
     return power
 
-
-def militarypowerwfuel(world, region, listships=None, incflagship=True):
-    'Returns fleet power from region or shiplist, taking fuel into account.'
-
-    fuel = 200*freighterregion(world, region)
-    if listships is None:
-        listships = regionshiplist(world, region)
-
-    cost = warpfuelcost(listships)
-    if incflagship and flagshipregion(world, region):
-        cost += 10
-    fuellist = [1, 2, 3, 4, 5, 6, 8, 10, 15]
-
-    if fuel >= cost:
-        return militarypower(world, region, listships, incflagship)
-    else:
-        deficit = cost - fuel
-
-    shiplist = [0,0,0,0,0,0,0,0,0]
-    skip = False
-
-    for index, shiptype in enumerate(listships):
-        if skip:
-            shiplist[index] = shiptype
-        elif shiptype*fuellist[index] < deficit:
-            deficit -= shiptype*fuellist[index]
-        else:
-            shipno = int(deficit/float(fuellist[index]) + 0.5)
-            shiplist[index] = listships[index] - shipno
-            skip = True
-            deficit = 0
-
-    if deficit > 0:
-        return militarypower(world, region, shiplist, False)
-    else:
-        return militarypower(world, region, shiplist, incflagship)
-
-
-def weighted_choice(weights):
+def weighted_choice(ships, highest):
     'Returns a weighted choice.'
     totals = []
     running_total = 0
-
-    for w in weights:
-        running_total += w
+    index = v.fleetindex
+    #+1 so we avoid adding freighters to the kill list
+    for ship in list(ships._meta.fields)[index+1:index+highest]:
+        running_total += ships.__dict__[ship.name]
         totals.append(running_total)
 
     rnd = random.random() * running_total
-    for i, total in enumerate(totals):
+    for ship, total in zip(list(ships._meta.fields)[(index+1):(index+highest)], totals):
         if rnd < total:
-            return i
+            if ships.__dict__[ship.name] is 0: #no more negative ships
+                return weighted_choice(ships, highest)
+            else:
+                return ship.name
 
+def highesttier(fleetlist):
+    highest = 0
+    for ship in v.shipindices:
+        if fleetlist.__dict__[ship] > 0:
+            highest = ship
+    if highest == 0:
+        return v.shipindices[0]
+    else:
+        return highest
 
 def war_losses(damage, shiplist):
-    'Distributes battle losses among a shiplist.'
-    ship0, ship1, ship2, ship3, ship4, ship5, ship6, ship7, ship8 = 0, 0, 0, 0, 0, 0, 0, 0, 0
+    'Distributes battle losses among a fleet.'
+    reference = fleet()
+    reference.merge(shiplist) #we use a reference here
+    #and use an atomic transaction for actual fleet manipulation
+    lost = fleet() #to be returned and merged with active fleet
+    shipinfo = v.shipcosts()
+    highest = v.shipindices.index(highesttier(shiplist))
+    highest += 1 #take discrepancy between list indexes and whatever into account
+    repeat = 0
     while damage > 0:
-        shipclasslost = weighted_choice(shiplist)
-        if shipclasslost is None:
-            return [ship0, ship1, ship2, ship3, ship4, ship5, ship6, ship7, ship8]
-        shiplist[shipclasslost] -= 1
-        if shipclasslost == 0:
-            damage -= 1
-            ship0 += 1
-        elif shipclasslost == 1:
-            damage -= 5
-            ship1 += 1
-        elif shipclasslost == 2:
-            damage -= 10
-            ship2 += 1
-        elif shipclasslost == 3:
-            damage -= 15
-            ship3 += 1
-        elif shipclasslost == 4:
-            damage -= 20
-            ship4 += 1
-        elif shipclasslost == 5:
-            damage -= 25
-            ship5 += 1
-        elif shipclasslost == 6:
-            damage -= 30
-            ship6 += 1
-        elif shipclasslost == 7:
-            damage -= 35
-            ship7 += 1
-        elif shipclasslost == 8:
-            damage -= 40
-            ship8 += 1
-    return [ship0, ship1, ship2, ship3, ship4, ship5, ship6, ship7, ship8]
+        shiplost = weighted_choice(reference, highest)
+        if shiplost is None: #fleet got decimated
+            return lost
+        if damage < shipinfo[shiplost]['damage'] and repeat < 20:
+            repeat += 1
+        elif repeat >= 20:
+            break
+        else:
+            repeat = 0
+            reference.__dict__[shiplost] -= 1
+            lost.__dict__[shiplost] += 1
+            damage -= shipinfo[shiplost]['damage']
+    return lost
 
 
-def war_result(attpower, defpower, defbasepower, defenselist, bonus=False):
+def war_result(attpower, defpower, defbasepower, bonus=False):
     'Returns damage of a battle.'
     attack = attpower**1.8
     defense = defpower**1.8
@@ -1256,37 +605,7 @@ def war_result(attpower, defpower, defbasepower, defenselist, bonus=False):
     except:
         damageunround = 0
 
-    damage = int(round(damageunround))
-
-    return war_losses(damage, defenselist)
-
-
-def warloss_byregion(world, region, losseslist):
-    'Battle losses by region.'
-    current, maximum = trainingstatus(world, region)
-    trainingloss = trainingfromlist(losseslist)
-    try:
-        ratio = float(current)/float(maximum)
-    except:
-        ratio = 0
-    actualloss = trainingloss*ratio
-
-    for shiptype, amount in enumerate(losseslist, start=1):
-        movecomplete(world, shiptype, -amount, region, 0)
-    trainingchange(world, region, -actualloss)
-
-
-def powerallmodifiers(world, region, listships=None, incflagship=True, ignorefuel=False):
-    'Returns power (with fuel) including all modifiers.'
-    if ignorefuel:
-        power = militarypower(world, region, listships, incflagship)
-    else:
-        power = militarypowerwfuel(world, region, listships, incflagship)
-
-    weamod = (percentweariness(world, world.region) if region == 'S' else percentweariness(world, region))
-    trmod = percenttraining(world, region)
-
-    return power*weamod*trmod
+    return int(round(damageunround))
 
 
 def hangargain(world, hangarlist):
@@ -1295,30 +614,7 @@ def hangargain(world, hangarlist):
         if 'receivestaging' in world.shipsortprefs:
             movecomplete(world, shiptype, amount, 'S', 0)
         else:
-            movecomplete(world, shiptype, amount, world.region, 0)
-
-
-def hangarcalculator(world, hangarlist):
-    'Returns hangar losses by millevel'
-    h1, h2, h3, h4, h5, h6, h7, h8, h9 = hangarlist
-    if world.millevel >= v.millevel('dre'):
-        return [h1, h2, h3, h4, h5, h6, h7, h8, h9]
-    elif world.millevel >= v.millevel('bsh'):
-        return [h1, h2, h3, h4, h5, h6, h7, h8, h9]
-    elif world.millevel >= v.millevel('bcr'):
-        return [h1, h2, h3, h4, h5, h6, h7, h8, 0]
-    elif world.millevel >= v.millevel('hcr'):
-        return [h1, h2, h3, h4, h5, h6, h7, 0, 0]
-    elif world.millevel >= v.millevel('fri'):
-        return [h1, h2, h3, h4, h5, h6, 0, 0, 0]
-    elif world.millevel >= v.millevel('des'):
-        return [h1, h2, h3, h4, h5, 0, 0, 0, 0]
-    elif world.millevel >= v.millevel('lcr'):
-        return [h1, h2, h3, h4, 0, 0, 0, 0, 0]
-    elif world.millevel >= v.millevel('cor'):
-        return [h1, h2, h3, 0, 0, 0, 0, 0, 0]
-    else:
-        return [h1, h2, 0, 0, 0, 0, 0, 0, 0]
+            movecomplete(world, shiptype, amount, world.sector, 0)
 
 
 def raidloss(fuelcost, supply):
@@ -1338,57 +634,22 @@ def raidloss(fuelcost, supply):
     return loss
 
 
-def stagingdivide(quantity, home, staging, hsratio):
-    'Divides losses between home and staging regions.'
-    if quantity == 0:
-        return 0,0
-    lhome = int(math.ceil(quantity*hsratio - 1) + 1)
-    lstaging = int(quantity - lhome)
-    if lhome <= home and lstaging <= staging:
-        return lhome, lstaging
-    elif lhome >= home and lstaging >= staging:
-        return home, staging
-    elif lhome > home:
-        diff = lhome - home
-        if lstaging+diff >= staging:
-            return home, staging
-        else:
-            return home, lstaging+diff
-    elif lstaging > staging:
-        diff = lstaging - staging
-        if lhome+diff >= home:
-            return home, staging
-        else:
-            return lhome+diff, staging
-
-
-def staginglosssplit(losslist, homelist, staginglist, hsratio):
-    'Applies stagingdivide() to ship lists.'
-    home = []
-    staging = []
-    for i in range(len(losslist)):
-        lhome, lstaging = stagingdivide(losslist[i], homelist[i], staginglist[i], hsratio)
-        home.append(lhome)
-        staging.append(lstaging)
-    return home, staging
-
-
 def flagshipreset(world):
     'Destroys a world\'s flagship.'
     world.flagshiptype = 0
-    world.flagshiplocation = world.region
+    world.flagshiplocation = world.sector
     world.flagshipbuild = False
     world.save(update_fields=['flagshiptype','flagshiplocation','flagshipbuild'])
 
 
-def salvage(losslist):
+def salvage(loss):
     'Creates salvage from a shiplist.'
     totd = tott = tota = 0
-    for shiptype, amount in enumerate(losslist, 1):
-        dur, trit, adam = v.matcosts(shiptype)
-        totd += dur*amount/10.0
-        tott += trit*amount/10.0
-        tota += adam*amount/10.0
+    matcosts = v.shipcosts()
+    for ship in list(loss._meta.fields)[v.fleetindex:]:
+        totd += matcosts[ship.name]['duranium']*loss.__dict__[ship.name]/random.randint(3, 10)
+        tott += matcosts[ship.name]['tritanium']*loss.__dict__[ship.name]/random.randint(3, 10)
+        tota += matcosts[ship.name]['adamantium']*loss.__dict__[ship.name]/random.randint(3, 10)
     return int(totd), int(tott), int(tota)
 
 
@@ -1604,16 +865,13 @@ def tooltipdisplay(world):
     stabreb = update.stabreb(world)
     rebstab = update.rebstab(world)
     budgetchange = update.toadd(world).quantize(D('.1'))
+    upkeep = update.upkeep(world)
     fuelprod = world.warpfuelprod
     fuelcharge = update.fuelcost(world)
-    fleets = mildisplaylist(world)
     budgetcap = update.budgetcap(world)
-    grotrade, x = update.grotrade(world)
+    #grotrade, x = update.grotrade(world)
     grostab = update.grostab(world)
     gropol = world.growth
-    groind, x = update.groind(world, world.industrialprogram)
-
-    gtrade = ('<span style="color:green;">+%s</span> anticipated from trade<br>' % grotrade if grotrade > 0 else '')
 
     if grostab in [-1, -2, -5]:
         gstab = '<span style="color:red;">-%s</span> due to stability<br>' % grostab
@@ -1621,10 +879,6 @@ def tooltipdisplay(world):
         gstab = '<span style="color:green;">+%s</span> due to stability<br>' % grostab
     else:
         gstab = ''
-
-    gpol = ('<span style="color:green;">+%s</span> from your policies<br>' % gropol if gropol > 0 else '')
-
-    gind = ('<span style="color:green;">+%s</span> estimated due to industry<br>' % int(groind) if groind > 0 else '')
 
     if contstab > 0:
         cstab = '<span style="color:green;">+</span> due to stability<br>'
@@ -1680,7 +934,7 @@ def tooltipdisplay(world):
     else:
         capmodifier = ''
 
-    regionmod = (' (<span style="color:green;">+15%</span> from A)' if world.region == 'A' else '')
+    regionmod = (' (<span style="color:green;">+15%</span> from A)' if world.sector == 'amyntas' else '')
 
     if world.qol >= 80:
         budgetmodifier = ' (<span style="color:green;">+20%</span> from QoL)'
@@ -1698,25 +952,25 @@ def tooltipdisplay(world):
         budgetmodifier = ' (<span style="color:red;">-40%</span> from QoL)'
     else:
         budgetmodifier = ''
-
+    xs = '<br>Upkeep: <span style="color:red;">-%s</span> every 20 min' % (upkeep)
     listbud = '<div class="tip" id="budget">Income: <span style="color:green;">+%s</span> every 20 min' % (budgetchange) + \
-        '<br>&nbsp;&nbsp;Mod: %s%s<br>Budget Cap: %s GEU<br>%s</div>' % (regionmod, budgetmodifier, budgetcap, capmodifier)
+        '<br>&nbsp;&nbsp;Mod: %s%s%s<br>Budget Cap: %s GEU<br>%s</div>' % (regionmod, budgetmodifier, xs, budgetcap, capmodifier)
 
     listfuel = '''<div class="tip" id="fuel"><span style="color:green;">+%s</span> due to production<br>
                   <span style="color:red;">-%s</span> due to fleet upkeep%s</div>''' % (fuelprod, fuelcharge, fuelwarning)
 
-    listhomep = '<div class="tip" id="homep">%s</div>' % powerbreakdown(fleets[0])
-    liststagingp = '<div class="tip" id="stagingp">%s</div>' % powerbreakdown(fleets[1])
-    listonep = '<div class="tip" id="onep">%s</div>' % powerbreakdown(fleets[2])
-    listtwop = '<div class="tip" id="twop">%s</div>' % powerbreakdown(fleets[3])
-    listthreep = '<div class="tip" id="threep">%s</div>' % powerbreakdown(fleets[4])
-    listhangarsp = '<div class="tip" id="hangarp">%s</div>' % powerbreakdown(fleets[5])
+    #listhomep = '<div class="tip" id="homep">%s</div>' % powerbreakdown(fleets[0])
+    #liststagingp = '<div class="tip" id="stagingp">%s</div>' % powerbreakdown(fleets[1])
+    #listonep = '<div class="tip" id="onep">%s</div>' % powerbreakdown(fleets[2])
+    #listtwop = '<div class="tip" id="twop">%s</div>' % powerbreakdown(fleets[3])
+    #listthreep = '<div class="tip" id="threep">%s</div>' % powerbreakdown(fleets[4])
+    #listhangarsp = '<div class="tip" id="hangarp">%s</div>' % powerbreakdown(fleets[5])
 
-    listhomes = '<div class="tip" id="homes">%s</div>' % supplydisplay(fleets[0])
-    liststagings = '<div class="tip" id="stagings">%s</div>' % supplydisplay(fleets[1])
-    listones = '<div class="tip" id="ones">%s</div>' % supplydisplay(fleets[2])
-    listtwos = '<div class="tip" id="twos">%s</div>' % supplydisplay(fleets[3])
-    listthrees = '<div class="tip" id="threes">%s</div>' % supplydisplay(fleets[4])
+    #listhomes = '<div class="tip" id="homes">%s</div>' % supplydisplay(fleets[0])
+    #liststagings = '<div class="tip" id="stagings">%s</div>' % supplydisplay(fleets[1])
+    #listones = '<div class="tip" id="ones">%s</div>' % supplydisplay(fleets[2])
+    #listtwos = '<div class="tip" id="twos">%s</div>' % supplydisplay(fleets[3])
+    #listthrees = '<div class="tip" id="threes">%s</div>' % supplydisplay(fleets[4])
 
     if cstab == cqol == creb == '':
         listcont = '<div class="tip" id="cont">No change.</div>'
@@ -1733,12 +987,12 @@ def tooltipdisplay(world):
     else:
         listreb = '<div class="tip" id="reb">%s</div>' % (rstab)
 
-    if gstab == gtrade == gpol == gind == '':
-        listgdp = '<div class="tip" id="gdp">No change.</div>'
+    if world.growth > 0:
+        growthchange = '<span style="color:green;">+%s</span> from growth' % world.growth
     else:
-        listgdp = '<div class="tip" id="gdp">%s %s %s %s</div>' % (gpol, gstab, gtrade, gind)
+        growthchange = '<span style="color:red;">-%s</span> from growth' % world.growth
+    listgdp = '<div class="tip" id="gdp">%s</div>' % growthchange
 
-    contents = "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s" % (listbud,listgdp,listfuel,listcont,liststab,listreb,listhomep,liststagingp,
-        listonep,listtwop,listthreep,listhangarsp,listhomes,liststagings,listones,listtwos,listthrees)
+    contents = "%s%s%s%s%s%s" % (listbud,listgdp,listfuel,listcont,liststab,listreb)
 
     return contents

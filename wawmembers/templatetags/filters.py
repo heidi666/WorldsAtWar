@@ -68,13 +68,13 @@ def linebreaks(string, times):
 register.filter('linebreaks', linebreaks)
 
 
-def worldlink(worldid, condition=True):
-    world = World.objects.get(pk=worldid)
-    if worldid == 0:
-        return world.world_name
-    else:
-        url = reverse('stats_ind', args=(worldid,))
-        text = (world.displayname if condition == 'username' else world.world_name)
-        return mark_safe('<a href="%s">%s</a>' % (url, text))
+def worldlink(world):
+    return mark_safe('<a href="%s">%s</a>' % (world.get_absolute_url(), world.name))
 
 register.filter('worldlink', worldlink)
+
+
+def formlookup(form, key):
+    return form[key]
+
+register.filter('formlookup', formlookup)

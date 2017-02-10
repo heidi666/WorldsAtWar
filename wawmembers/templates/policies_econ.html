@@ -1,0 +1,182 @@
+{% extends "policies_base.html" %}
+{% block title %}Worlds at War - Economic Policies{% endblock %}
+
+{% block policies %}
+
+<center>
+
+  <h1>Economic Policies</h1>
+
+  <p>Current budget: {{ request.user.world.budget }} GEU</p>
+
+  {% if result %}
+    <p class="message">{{ result|safe }}</p>
+  {% endif %}
+
+  {% if rumsodmsg != None %}
+    <p class="rumsoddium">{{ rumsodmsg|safe }}</p>
+  {% endif %}
+
+</center>
+
+<form action="" method="post">{% csrf_token %}
+
+  <table>
+    {% if shownoob != None %}
+    <tr>
+      <td class="bigger" colspan="2">Cheap Goods</td>
+    </tr><tr>
+      <td colspan="2">Flood your domestic market with cut-price stuff. This may be used to improve growth, but it won't be useful beyond a higher GDP.</td>
+    </tr><tr>
+      <td>Cost: 70 GEU </td>
+      <td align="left"><input type="submit" name="noobgrowthpolicy" value="Flood" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+    {% endif %}
+    <tr>
+      <td class="bigger" colspan="2">Forced Labour</td>
+    </tr><tr>
+      <td colspan="2">You can set your dissidents to work, with a high chance of increasing growth, but the rest of the population will not be happy. Only available to autocracies.</td>
+    </tr><tr>
+      <td>Cost: Decrease in contentment and stability. </td>
+      <td align="left"><input type="submit" name="forcedlabour" value="Force" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Nationalise Businesses</td>
+    </tr><tr>
+      <td colspan="2">You can assume direct control of many businesses and run them yourself for the benefit of the people. This will move you towards central planning, but stability will suffer due to large-scale reorganisation.</td>
+    </tr><tr>
+      <td> Cost: Loss of stability. </td>
+      <td align="left"><input type="submit" name="nationalise" value="Nationalise" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Privatise Services</td>
+    </tr><tr>
+      <td colspan="2">Your government-owned services are too bureaucratic and inefficient! Selling them off will encourage competition. This will move you towards a free market, but stability will suffer due to large-scale reorganisation.</td>
+    </tr><tr>
+      <td> Cost: Loss of stability. </td>
+      <td align="left"><input type="submit" name="privatise" value="Privatise" class="button"/></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Set up Fuel Refinery</td>
+    </tr><tr>
+      <td colspan="2">Your fleet needs fuel to operate. If you set up a fuel refinery, it will absorb the solar wind and provide you with a clean source of energy.</td>
+    </tr><tr>
+      <td>Cost: {{rescosts.warpfuelprod}} GEU </td>
+      <td align="left">
+      <button type="submit" name="build" value="warpfuelprod" class="button">
+        Set Up
+      </button></td>
+    </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Prospect for Duranium</td>
+    </tr><tr>
+      <td colspan="2">Duranium is a fairly common material for ship hulls. Set up a mining expedition in your system, and if you find a duranium-rich asteroid you can set up an extractor on it.</td>
+    </tr><tr>
+      <td>Cost: {{rescosts.duraniumprod}} GEU </td>
+      <td align="left">
+      <button type="submit" name="build" value="duraniumprod" class="button">
+        Prospect D
+      </button></td>
+    </tr>
+
+    {% if showtrit != None %}
+
+      <tr><td colspan="2"><hr></td></tr>
+
+      <tr>
+        <td class="bigger" colspan="2">Prospect for Tritanium</td>
+      </tr><tr>
+        <td colspan="2">Tritanium is a key element in high-performance hulls, but is rarer than duranium. Set up a deeper mining expedition in your system, and if you find a tritanium-rich asteroid you can set up an extractor on it.</td>
+      </tr><tr>
+        <td>Cost: {{rescosts.tritaniumprod}} GEU </td>
+        <td align="left">
+        <button type="submit" name="build" value="tritaniumprod" class="button">
+          Prospect T
+       </button></td>
+      </tr>
+
+      {% if showadam != None %}
+        <tr><td colspan="2"><hr></td></tr>
+
+        <tr>
+          <td class="bigger" colspan="2">Prospect for Adamantium</td>
+        </tr><tr>
+          <td colspan="2">One of the hardest (and rarest) materials known, only the most fearsome of ships will have adamantium-reinforced hulls. Set up a mining expedition into the deepest reaches of your system, and if you should find an adamantium-rich asteroid you can set up an extractor on it.</td>
+        </tr><tr>
+          <td>Cost: {{rescosts.adamantiumprod}} GEU </td>
+          <td align="left">
+          <button type="submit" name="build" value="adamantiumprod" class="button">
+            Prospect A
+          </button></td>
+        </tr>
+      {% endif %}
+
+    {% endif %}
+
+    <tr><td colspan="2"><hr></td></tr>
+
+      <tr>
+        <td class="bigger" colspan="2">Shutter Production</td>
+      </tr><tr>
+        <td colspan="2">Times are tough and excess production is a waste of GEU, it may be time to shut it down</td>
+      </tr><tr>
+        <td>
+          <div style="display: inline-block;" align="left">Cost: None</div>
+          <div style="display: inline-block; float: right">{{ shutterform.mine }}</div>
+          </td>
+        <td align="left">
+        <button type="submit" name="close" value="dontmatterlol" class="button">
+          Shut It Down
+       </button></td>
+      </tr>
+
+    <tr><td colspan="2"><hr></td></tr>
+
+    <tr>
+      <td class="bigger" colspan="2">Launch Salvage Mission</td>
+    </tr><tr>
+      <td colspan="2">Battles around your world leave all sorts of debris floating in the emptiness of space. A salvage mission will attempt to collect some of the debris and bring them back to your world as usable materials. Cost varies with the amount of salvage to collect.</td>
+    </tr><tr>
+      <td colspan="2">Current salvage: {{salvagetext}}</td>
+    </tr><tr>
+      <td>Cost: {{salvagecost}} GEU </td>
+      <td align="left">
+      <input type="submit" name="salvagemission" value="Salvage" class="button"/></td>
+    </tr>
+  </table>
+
+  {% if rumpolicy != None %}
+
+    <hr>
+
+    <table style="border: 2px solid green;">
+      <tr>
+        <td class="bigger" colspan="2">Rumsoddium Economic Miracle</td>
+      </tr>
+      <tr>
+        <td colspan="2">Upon collecting the 4 existing pieces of rumsoddium, your scientists find it has amazing - almost miraculous - properties! They believe that if you arrange the pieces in a square and bombard them with radio waves at a frequency of exactly Hz, while two dancers perform a waltz in the room, a mystical wave will sweep the world, and in a flurry of activity your world's GDP and resources will be doubled!</td>
+      </tr>
+      <tr>
+        <td style="width:50%">Cost: 4 pieces of rumsoddium </td>
+        <td align="left"><input type="submit" name="rumsodecon" value="Enact Ritual" class="button"/></td>
+      </tr>
+    </table>
+  {% endif %}
+
+</form>
+
+{% endblock %}

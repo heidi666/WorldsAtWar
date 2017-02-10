@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+{% load filters %}
+<style>
+.left {
+	display: inline-block;
+	margin-right: 5px;
+	width: 40%;
+	margin-top: 30px;
+	margin-bottom: 30px;
+	height: 100%;
+}
+.right {
+	display: inline-block;
+	margin-left: 5px;
+	margin-top: 30px;
+	width: 40%;
+	margin-bottom: 30px;
+	height: 100%;
+
+}
+
+.middle {
+	display: inline-block;
+	width: 10%;
+	height: 100%;
+	display: inline-block;
+	margin-top: 30px;
+	margin-bottom: 30px;
+	line-height: 163%;
+}
+</style>
+<center>
+<h3 style="margin-bottom: 50px">Ship exchange</h3>
+{% if form.errors %}
+<div><p>{{ form.errors }}</p></div>
+{% endif %}
+
+
+<form method="POST">{% csrf_token  %}
+<input type="hidden" name="fleet1" value="{{ fleet1.pk }}">
+<input type="hidden" name="fleet2" value="{{ fleet2.pk }}">
+<div class="left">
+<table class="striped militarydisplay" style="min-width: 200px;">
+	<th colspan="2">
+		{{ fleet1.name }}
+	</th>
+	{% for cell in fleet1.render %}
+	<tr>
+		<td style="width: 80%;">{{ cell.ship }}</td>
+		<td> {{form |formlookup:cell.form}}</td>
+	</tr>
+	{% endfor %}
+</table>
+</div>
+<div class="middle">
+<table class="striped militarydisplay">
+	<th>Total</th>
+	{% for total in totals %}
+	<tr>
+		<td><center>{{ total }}</center></td>
+	</tr>
+	{% endfor %}
+</table>
+</div>
+<div class="right">
+<table class="striped militarydisplay" style="min-width: 200px;">
+	<th colspan="2">
+		{{ fleet2.name }}
+	</th>
+	{% for cell in fleet2.render %}
+	<tr>
+		<td style="width: 80%;">{{ cell.ship }}</td>
+		<td> {{form |formlookup:cell.form}}</td>
+	</tr>
+	{% endfor %}
+</table>
+</div>
+<div class="maxego">
+<input type="submit" name="set" value="Set" class="button">
+</div>
+</center>
+</form>
+{% endblock %}

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+{% load random_quote %}{% load basetags %}{% load static from staticfiles %}
+<html lang="en">
+  <head>
+    <title>{% block title %}Worlds at War{% endblock %}</title>
+    <meta name="description" content="Worlds at War - a galactopolitical simulator." />
+    <link rel="shortcut icon" href="{% static "wawmembers/favicon.ico" %}"/>
+    <link rel="stylesheet" href="{% static "css/base.css" %}" type="text/css">
+    <link rel="stylesheet" href="{% static "css/qtip.css" %}" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/qtip2/2.2.0/jquery.qtip.min.css" />
+    <noscript><style>.js { display:none }</style></noscript>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/qtip2/2.2.0/jquery.qtip.min.js"></script>
+    <script type="text/javascript" src="{% static "js/currenttime.js" %}"></script>
+    <style>
+      body {
+        background-image: url({% bgchoice %});
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        -webkit-background-size: cover;
+        -moz-background-size: cover;
+        -o-background-size: cover;
+        background-size: cover;
+      }
+      .sidetooltip .qtip-tip {
+        background-color: gray;
+      }
+    </style>
+    {% lowqolcs %}
+    {% block extrahead %}{% endblock %}
+  </head>
+
+  <body>
+
+    <div class="wrapper">
+
+      <img src="{% static "wawmembers/strapline.png" %}" alt="Splash" class="strapline" height="56" width="746">
+
+      <br>
+
+      <div class="sidebar">
+
+        <a href="{% url 'main' %}" style="background-color:transparent;">
+          <img src="{% static "wawmembers/sidebarworld.png" %}" alt="World" class="sbimage">
+        </a>
+
+        <a href="{% url 'main' %}">Home</a>
+
+        {% if user.is_authenticated %}
+
+          <a href="{% url 'world_news' %}">World News <b>{% news_quantity %}</b></a>
+
+          <a href="{% url 'communiques' %}">Comms <b>{% comms_quantity %}</b></a>
+
+          {% policieschoice True %}
+          <noscript>{% policieschoice False %}</noscript>
+
+          <a href="{% url 'fleet_management' %}">Fleet Management</a>
+
+          <a href="{% url 'spies' %}">Intel Agency</a>
+
+          <a href="{% url 'tasks' %}">Tasks</a>
+
+          <a href="{% url 'stats' %}" style="background-color:transparent;">
+            <img src="{% static "wawmembers/sidebargalaxy.png" %}" alt="Galaxy" class="sbimage">
+          </a>
+
+          <a href="{% url 'stats' %}">The Galaxy</a>
+
+          <a href="{% url 'galactic_news' %}">Galactic News</a>
+
+          <a href="{% url 'trades' %}">Galactic Market</a>
+
+          <a href="{% url 'alliances' %}">Federations</a>
+
+          <a href="{% url 'settings' %}">Settings</a>
+
+          <div class="js">
+            <a href="#" class="sidebartrigger" id="community">Community</a>
+            <div class="tip" id="community">
+              <center>
+                <a href="/forums" target="_blank">Forums</a>
+                <a href="/wiki" target="_blank">Wiki</a>
+                <a href="/irc" target="_blank">IRC</a>
+              </center>
+            </div>
+          </div>
+          <noscript>
+              <a href="/forums" target="_blank">Forums</a>
+              <a href="/wiki" target="_blank">Wiki</a>
+              <a href="/irc" target="_blank">IRC</a>
+          </noscript>
+
+          <a href="/logout" style="color:red;">Logout</a>
+
+        {% else %}
+
+          <a href="{% url 'stats' %}" style="background-color:transparent;">
+            <img src="{% static "wawmembers/sidebargalaxy.png" %}" alt="Galaxy" class="sbimage">
+          </a>
+
+          <a href="{% url 'stats' %}">The Galaxy</a>
+
+          <a href="{% url 'galactic_news' %}">Galactic News</a>
+
+          <a href="{% url 'alliances' %}">Federations</a>
+
+          <div class="js">
+            <a href="#" class="sidebartrigger" id="community">Community</a>
+            <div class="tip" id="community">
+              <center>
+                <!--<a href="/forums" target="_blank">Forums</a>-->
+                <!--<a href="/wiki" target="_blank">Wiki</a>-->
+                <a href="/irc" target="_blank">IRC</a>
+              </center>
+            </div>
+          </div>
+          <noscript>
+            <a href="/forums" target="_blank">Forums</a>
+            <a href="/wiki" target="_blank">Wiki</a>
+            <a href="/irc" target="_blank">IRC</a>
+          </noscript>
+
+          <a href="/login">Login</a>
+
+          <a href="/register">Register</a>
+
+        {% endif %}
+
+        <p class='center' style='color:gray;'>Server time: <span id="datetime">{% servertime %}</span></p>
+      </div>
+
+      <div class="container tag">
+        <center>
+          <p>Lamp posts and sunshine, things will still break. Combat is all squared away hopefully i think so, you can post trade offers but not accept (lol)((yet))</p>
+        </center>
+      </div>
+
+      <div class="container">
+        {% block content %}{% endblock %}
+      </div>
+
+      <div class="container tag">
+        <center>
+          {% random_quote %} <p class="halfline">&nbsp;</p>
+          <span class="legalstuff">
+            <a href="/legal">Legal</a> &nbsp; <a href="/donate"><span style="color:steelblue">Donate</span></a> &nbsp; <a href="/about">About</a>
+          </span>
+          <br>
+        </center>
+      </div>
+    </div>
+
+  <script>
+  $(document).ready(function() {
+    $('a.sidebartrigger').click(function(event) {
+      event.preventDefault();
+    })
+    $('.sidebartrigger').each(function() {
+      var id = $(this).attr('id');
+      $(this).qtip({
+        style: {
+          classes:'qtip-cluetip sidetooltip'
+        },
+        position: {
+          my: 'left top',  // Position my top left...
+          at: 'center right', // at the bottom right of...
+          adjust: {
+            x: -20
+          }
+        },
+        content: {
+          text: $('.tip#'+id).html(),
+        },
+        show: 'click',
+        hide: 'unfocus'
+      });
+    });
+  });
+  </script>
+
+  </body>
+
+</html>

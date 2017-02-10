@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <link rel="stylesheet" href="{% static "css/main.css" %}" type="text/css">
+  <style>
+    .qtip {
+      max-width: 500px;
+    }
+  </style>
+{% endblock %}
+{% load mildisplay %}
+{% load filters %}
+
+{% block title %}Worlds at War - Your World{% endblock %}
+
+{% block content %}
+
+<div class="main">
+
+  <center>
+
+    {% if haswars %}
+      <p class="bigger" style="color: red;">You are at WAR!</p>
+    {% endif %}
+
+    {% if world.rumsoddium != 0 %}
+      <p class="rumsoddium">You have prized rumsoddium!</p>
+    {% endif %}
+
+    {% if message %}
+      <p class="message">{{ message | safe }}</p>
+    {% endif %}
+
+    <p class="halfline">&nbsp;</p>
+
+    {{ world.world_descriptor }}
+
+    <h1>{{ world.name }}</h1>
+
+    {% if world.preferences.donor and world.preferences.donatorflag != 'none' %}
+      <img src="{{world.preferences.donatorflag}}" alt="Custom flag" id="displayflag">
+    {% else %}
+      <img src="{% static "avatarsnflags/"|add:world.preferences.flag|add:".gif" %}" alt="{{ world.preferences.flag }}">
+    {% endif %}
+
+    <p>{{ world.world_desc | linebreaks:5 }}</p>
+
+    {% if world.preferences.donor and world.preferences.donatorflag != 'none' %}
+      <img src="{{world.preferences.donatoravatar}}" alt="Custom avatar" id="displayavatar">
+    {% else %}
+      <img src="{% static "avatarsnflags/"|add:world.preferences.avatar|add:".gif" %}" alt="{{ world.preferences.avatar }}">
+    {% endif %}
+
+    <p class="halfline">&nbsp;</p>
+
+    {{ world.leadertitle }}:
+
+    <p class="halfline">&nbsp;</p>
+
+    <b><i class="bigger">{{ world.displayname | safe }}</i></b>
+
+    {% if world.preferences.card %}
+      <p class="halfline">&nbsp;</p><img src="{% static "cards/"|add:world.preferences.card|add:".gif" %}" alt="Card" height="60">
+    {% endif %}
+
+    {% if world.preferences.donor == True %}
+      <p>
+        <iframe width="300" height="30" src="https://www.youtube.com/embed/{{world.donatoranthem}}?rel=0&autoplay=1"
+          frameborder="0" allowfullscreen></iframe>
+      </p>
+    {% endif %}
+
+    <p>Sector: <i>{{ world.displayregion }}</i></p>
+
+    <p><a href="{% url 'warlogs' %}">War Logs</a> / <a href="{% url 'reslogs' %}">Resource Logs</a></p>
+
+    <h2>Domestic</h2>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Political System:</td>
+        <td><i>{{ world.displaypol }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Perception:</td>
+        <td class="tiptrigger" id="cont">{{ world.displaycontentment|safe}}<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="light">
+        <td>Stability:</td>
+        <td class="tiptrigger" id="stab">{{ world.displaystability|safe}}<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="dark">
+        <td>Rebels:</td>
+        <td class="tiptrigger" id="reb">{{ world.displayrebels|safe }}<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="light">
+        <td>Quality of life:</td>
+        <td>{{ world.displayqol|safe }}</td>
+      </tr>
+    </table>
+
+    <h2>Economic</h2>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Economic System:</td>
+        <td><i>{{ world.displayecon }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Budget:</td>
+        <td class="tiptrigger" id="budget"><i>{{ world.budget }}</i> GEU<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="light">
+        <td>GDP:</td>
+        <td class="tiptrigger" id="gdp"><i>{{ world.gdp }}</i> million GEU<span class="tnotif">T</span></td>
+      </tr>
+      <tr class="dark">
+        <td>Growth:</td>
+        <td><i>{{ world.growth }}</i> million GEU</td>
+      </tr>
+      <tr class="light">
+        <td>Upkeep:</td>
+        <td><i>{{ upkeep }}</i> million GEU</td>
+      </tr>
+    </table>
+
+    <h2>Diplomacy</h2>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Federation: </td>
+        {% if alliance %}
+          <td><b><i><a href="{% url 'alliances_ind' world.alliance.pk %}">{{ world.alliance }}</a></i></b></td>
+        {% else %}
+          <td><i>None</i></td>
+        {% endif %}
+      </tr>
+    </table>
+
+    <h2>Military</h2>
+
+    {% if haswars != None %}
+      <div class="warmessage">
+        <h3>Wars</h3>
+        {% if offlist %}
+          <p>Attacking: &nbsp;
+            {% for war in offlist %}
+              <a href="{{ war.get_absolute_url }}">{{ war.name }}</a> &nbsp;
+            {% endfor %}
+          </p>
+        {% endif %}
+        {% if deflist %}
+          <p>Defending: &nbsp;
+            {% for war in deflist %}
+              <a href="{{ war.get_absolute_url }}">{{ war.name }}</a> &nbsp;
+            {% endfor %}
+          </p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if warprotection != None or abovegdpprotection != None or brokenwarprotect != None %}
+      <h3>Statuses</h3>
+      {% if warprotection != None %}
+        {{ warprotection }}
+        <br>
+      {% endif %}
+      {% if abovegdpprotection != None %}
+        {{ abovegdpprotection }}
+        <br>
+      {% endif %}
+      {% if brokenwarprotect != None %}
+        {{ brokenwarprotect }}
+        <br>
+      {% endif %}
+    {% endif %}
+
+    <h3>Supplies</h3>
+
+    <table class="striped supplydisplay">
+      <tr class="verydark">
+        <td class="tableheader">Resource </td>
+        <td class="tableheader">Amount</td>
+        <td class="tableheader">Production / turn</td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad">Warpfuel:</td>
+        <td class="center supplytiptrigger" id="fuel"><i>{{ world.warpfuel }}</i> <span class="tnotif">T</span></td>
+        <td class="center"><i>{{ world.warpfuelprod }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad">Duranium:</td>
+        <td class="center"><i>{{ world.duranium }}</i> </td>
+        <td class="center"><i>{{ world.duraniumprod }}</i></td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad">Tritanium:</td>
+        <td class="center"><i>{{ world.tritanium }}</i> </td>
+        <td class="center"><i>{{ world.tritaniumprod }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad">Adamantium:</td>
+        <td class="center"> <i>{{ world.adamantium }}</i> </td>
+        <td class="center"><i>{{ world.adamantiumprod }}</i></td>
+      </tr>
+      {% if world.rumsoddium != 0 %}
+        <tr class="light">
+          <td class="leftpad" style="color:green;">Rumsoddium:</td>
+          <td class="center" style="color:green;"><i>{{ world.rumsoddium}}</i> </td>
+          <td class="center" style="color:green;">None</td>
+        </tr>
+      {% endif %}
+    </table>
+
+    <h3>General</h3>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Military production level:</td>
+        <td><i>{{ world.techlevel }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Progress: </td>
+        <td>
+          {% if progress != None %}
+            <div class="meter"><span style="width:{{ progress }}%"></span></div>
+          {% else %}
+            Completed!
+          {% endif %}
+        </td>
+      </tr>
+      <tr class="light">
+        <td>Shipyards:</td>
+        <td><i>{{ world.shipyards }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Production points:</td>
+        <td><i>{{ world.productionpoints }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>Planetbound freighters:</td>
+        <td><i>{{ world.freighters }}</i>
+      <tr class="dark"> 
+        <td>Freighters in use:</td>
+        <td><i>{{ world.freightersinuse }}</i></td>
+      </tr>
+      <tr class="light"> 
+        <td>Available freighters:</td>
+        <td><i>{{ sparefreighters }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>War points:</td>
+        <td><i>{{ world.warpoints }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>Duranium salvage:</td>
+        <td><i>{{ world.salvdur }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Tritanium salvage:</td>
+        <td><i>{{ world.salvtrit }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>Adamantium salvage:</td>
+        <td><i>{{ world.salvadam }}</i></td>
+      </tr>
+      {% if world.displaypship == None %}
+        <tr class="dark">
+          <td>Personal Ship:</td>
+          <td><i>None</i></td>
+        </tr>
+      {% endif %}
+    </table>
+
+    {% if world.displaypship != None %}
+      <p class="halfline">&nbsp;</p>
+      <h3>Personal Ship</h3>
+      <table class="striped">
+        <tr class="light">
+          <td class="leftpad">Ship type:</td>
+          <td class="leftpad"><i>{{ world.displaypship }}</i></td>
+        </tr>
+        <tr class="dark">
+          <td colspan="2" class="center nohl">
+            {% if world.donator == True %}
+              <img src="{{ world.donatorflagship }}" alt="Custom flagship" id="displayflagship" height="200px">
+            {% else %}
+              <img src="{% static "personalships/"|add:world.flagshippicture|add:".gif" %}" alt="{{ world.flagshippicture }}" id="displayflagship">
+            {% endif %}
+
+          </td>
+        </tr>
+        <tr class="light">
+          <td colspan="2" class="center" style="font-size:1.2em"><i><b>{{ world.flagshipname }}</b></i></td>
+        </tr>
+        <tr class="dark">
+          <td class="leftpad">Location:</td>
+          <td class="leftpad"><i>{{ shiploc }}</i></td>
+        </tr>
+      </table>
+    {% endif %}
+    <br>
+    <table style="width:90%" class="striped militarydisplay">
+      {% for sector in mildisplay %}
+        {% if forloop.counter < 2 %}
+          <tr class="verydark">
+        {% else %}
+          <tr class="{% cycle 'light' 'dark' %}">
+        {% endif %}
+        {% if forloop.counter < 2 %}
+          <td class="hidden nohl"></td>
+        {% endif %}
+        {% for data in sector %}
+        {% if forloop.parentloop.counter == 1 %}
+          <td class="center"><b>{{ data|safe|capfirst }}</b></td>
+        {% elif forloop.counter == 1 %}
+          <td class="leftpad">{{ data|safe|capfirst }}</td>
+        {% else %}
+          <td class="center">{{ data|safe|capfirst }}</td>
+        {% endif %}
+        {% endfor %}
+        </tr>
+      {% endfor %}      
+    </table>
+
+  </center>
+
+</div>
+
+{{ tooltips|safe }}
+
+<script>
+$(document).ready(function(){
+
+  $('.tiptrigger').each(function() {
+    var id = $(this).attr('id');
+    $(this).qtip({
+      style: {
+        classes:'qtip-cluetip tooltip'
+      },
+      position: {
+        my: 'top left',    // Position my top left...
+        at: 'bottom left', // at the bottom right of...
+        adjust: {
+          x: 20
+        }
+      },
+      content: {
+        text: $('.tip#'+id).html(),
+      },
+      hide: {
+        event: 'mouseleave'
+      }
+    });
+  });
+
+  $('.supplytiptrigger').each(function() {
+    var id = $(this).attr('id');
+    $(this).qtip({
+      style: {
+        classes:'qtip-cluetip tooltip'
+      },
+      position: {
+        my: 'top left',    // Position my top left...
+        at: 'bottom center', // at the bottom right of...
+      },
+      content: {
+        text: $('.tip#'+id).html(),
+      },
+      hide: {
+        event: 'mouseleave'
+      }
+    });
+  });
+
+  $('.fleettiptrigger').each(function() {
+    var id = $(this).attr('id');
+    $(this).qtip({
+      style: {
+        classes:'qtip-cluetip smallertip'
+      },
+      position: {
+        my: 'left center',  // Position my top left...
+        at: 'center right', // at the bottom right of...
+        adjust: {
+          x: -25
+        }
+      },
+      content: {
+        text: $('.tip#'+id).html(),
+      },
+      hide: {
+        event: 'mouseleave'
+      }
+    });
+  });
+});
+</script>
+
+{% endblock %}

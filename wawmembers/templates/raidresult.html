@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block title %}Worlds at War - Raid Result{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>Raid Result</h1>
+
+  {% if success == True %}
+    <h2>Victory!</h2>
+    <img src="{% static "wawmembers/raidvictory.gif" %}" alt="victory">
+  {% else %}
+    <h2>Loss!</h2>
+    <img src="{% static "wawmembers/raidloss.gif" %}" alt="loss">
+  {% endif %}
+
+  <p class="halfline">&nbsp;</p>
+
+  <b>{{ resultdetails | safe }}</a></b>
+
+</center>
+
+{% endblock %}

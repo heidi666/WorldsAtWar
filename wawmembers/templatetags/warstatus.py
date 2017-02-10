@@ -30,10 +30,7 @@ def warwarning(title):
     url = static('wawmembers/warwarning.png')
     return '<img src="%s" alt="warwarning" title="%s">' % (url, title)
 
-def warstatus(worldpk, targetpk):
-
-    world = World.objects.get(pk=worldpk)
-    target = World.objects.get(pk=targetpk)
+def warstatus(world, target):
     try:
         War.objects.get(attacker=world, defender=target)
         atwar = True
@@ -44,11 +41,21 @@ def warstatus(worldpk, targetpk):
         except:
             atwar = False
 
-    ownpower = utilities.powerallmodifiers(world, target.region)
-    targetpower = utilities.powerallmodifiers(target, target.region) + utilities.powerallmodifiers(target, 'S')
+    ownpower = targetpower = 0
+    powerok = False
+    for sector in v.sectors:
+        for f in world.fleets.all().filter(sector=sector):
+            ownpower += f.powermodifiers()
+        for f in target.fleets.all().filter(sector=sector):
+            targetpower += f.powermodifiers()
+        if ownpower < 0.1*targetpower:
+            powerok = True
+            break
+        ownpower = targetpower = 0
+
     if world == target:
         status = warnotok('You cannot declare war on yourself.')
-    elif target.vacation:
+    elif target.preferences.vacation:
         status = warnotok('This world is in vacation mode.')
     elif atwar:
         status = warnotok('You\'re already at war with this world.')
@@ -66,7 +73,7 @@ def warstatus(worldpk, targetpk):
         status = warnotok('This world already has the max quota of defensive wars.')
     elif world.warattacker.count() == 3:
         status = warnotok('You already have the max quota of offensive wars.')
-    elif ownpower < 0.1*targetpower:
+    elif powerok:
         status = warnotok('You do not have enough fleet power to declare war on this world.')
     else:
         title = ''

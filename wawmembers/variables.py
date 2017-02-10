@@ -10,7 +10,7 @@ import random
 maintenance = True # True for maintenance - don't change this
 
 '''
-Misc variables and simple functions used in a lot of places.
+Misc variables and simple functions used in a lot of place                           s.
 '''
 
 origcorlevel = 5000
@@ -43,21 +43,82 @@ def millevel(key):
     elif key == 'dre':
         return millevels.drelevel
 
+
+eventfighters = 10 #amount of fighters you get from noob event
+
+
 # Resources
-resources = [0,1,2,3,4,11,12,13,14,15,16,17,18,19]
+#for ordered looping
+productionindices = ['warpfuelprod', 'duraniumprod', 'tritaniumprod', 'adamantiumprod']
+
+production = { #amount of resources per mine
+    'warpfuelprod': {'cost': 750, 'production': 10, 'chance': 5},
+    'duraniumprod': {'cost': 1200, 'production': 5, 'chance': 40},
+    'tritaniumprod': {'cost': 1550, 'production': 3, 'chance': 50},
+    'adamantiumprod': {'cost': 2100, 'production': 1, 'chance': 70},
+}
+
+resources = ['budget', 'warpfuel', 'duranium', 'tritanium', 'adamantium']
 
 # Ship indexes
-shipindices = ['Fighters','Corvettes','Light Cruisers','Destroyers','Frigates','Heavy Cruisers','Battlecruisers','Battleships','Dreadnoughts']
+shipindices = ['freighters', 'fighters','corvettes','light_cruisers','destroyers','frigates','heavy_cruisers','battlecruisers','battleships','dreadnoughts']
+tiers = ['Fighter','Corvette','Light cruiser','Destroyer','Frigate','Heavy cruiser','Battlecruiser','Battleship','Dreadnought']
 
+tradenames = ['Currency', 'Warpfuel', 'Duranium', 'Tritanium', 'Adamantium', 'Freighters', 'Fighters', 'Corvettes', 'Light Cruisers', 'Destroyers',
+                  'Frigates', 'Heavy Cruisers', 'Battlecruisers', 'Battleships', 'Dreadnoughts']
+
+#underscore in lieu of spaces, otherwise fleet model can't use them
+
+training_costs = {
+    'fighters': 1,
+    'corvettes': 2,
+    'light_cruisers': 4,
+    'destroyers': 6,
+    'frigates': 8,
+    'heavy_cruisers': 12,
+    'battlecruisers': 18,
+    'battleships': 30,
+    'dreadnoughts': 50
+}
+
+bonuses = { #for easy game balance alteration
+    'amyntas': 1.2,
+    'bion': 0.80,
+    'cleon': 0.75,
+    'draco': 0.75,
+}
+
+#increment this every time a field is added to the fleet model
+#using a global variable is easier than editing all the code calling _meta.fields
+fleetindex = 9
 # Background selection
 def background():
     return random.randint(1,10)
 
+#dict of the amount of space each resources takes up
+freighter_capacity = {
+    'total': 1000, #total cargo space
+    'warpfuel': 4,
+    'duranium': 15,
+    'tritanium': 25,
+    'adamantium': 30,
+    'gdp': 0,
+    'growth': 0,
+    'blueprints': 1,
+}
+
 # Comm display preference
 commprefs = ['new','old']
 
+# Comm spam denial
+delay = 10 
+commlimit = 2
+#$commlimit comms per $delay seconds   
+
+fuelupkeep = 0.1
+
 # Sectors
-sectors = ['A','B','C','D']
+sectors = ['amyntas','bion','cleon','draco']
 
 # Galaxy sort preference
 galsortprefs = ['worldid','-worldid','gdp','-gdp','world_name','-world_name','user_name','-user_name','warpoints','-warpoints']
@@ -80,71 +141,143 @@ policyprefs = ['js', 'econ', 'domestic', 'diplomacy', 'military']
 # Build prefs
 buildprefs = ['ind', 'multi']
 
-# Shipbuild costs
-def matcosts(shiptype):
-    if shiptype == 1:
-        return 1, 0, 0
-    elif shiptype == 2:
-        return 5, 0, 0
-    elif shiptype == 3:
-        return 10, 0, 0
-    elif shiptype == 4:
-        return 15, 5, 0
-    elif shiptype == 5:
-        return 20, 10, 0
-    elif shiptype == 6:
-        return 25, 15, 0
-    elif shiptype == 7:
-        return 30, 20, 5
-    elif shiptype == 8:
-        return 35, 25, 10
-    elif shiptype == 9:
-        return 40, 30, 20
+#keys map to model fields
+upkeep = {
+    'warpfuelprod': 2,
+    'duraniumprod': 15,
+    'tritaniumprod': 25,
+    'adamantiumprod': 40
+}
 
-def shipcosts(region, shiptype):
-    'Return cost, dur, trit, adam, shipyards, hours, fuel.'
-    if shiptype == 1:
-        cost, shipyards, hours, fuel = 50, 1, 1, 1
-    elif shiptype == 2:
-        cost, shipyards, hours, fuel = 100, 2, 2, 2
-    elif shiptype == 3:
-        cost, shipyards, hours, fuel = 200, 2, 3, 3
-    elif shiptype == 4:
-        cost, shipyards, hours, fuel = 300, 3, 4, 4
-    elif shiptype == 5:
-        cost, shipyards, hours, fuel = 400, 4, 6, 5
-    elif shiptype == 6:
-        cost, shipyards, hours, fuel = 500, 5, 8, 6
-    elif shiptype == 7:
-        cost, shipyards, hours, fuel = 600, 6, 12, 8
-    elif shiptype == 8:
-        cost, shipyards, hours, fuel = 800, 10, 18, 10
-    elif shiptype == 9:
-        cost, shipyards, hours, fuel = 1000, 20, 24, 15
+mildis = {
+    'freighters': 'Freighters'
+}
 
-    dur, trit, adam = matcosts(shiptype)
 
-    if region == 'B':
-        cost *= 0.85
-        dur = int(round(dur*0.8))
-        trit = int(trit*0.8)
-        adam = int(adam*0.8)
+def shipcosts(region=False):
+    costs = {
+    'freighters': {
+        'geu': 100,
+        'duranium': 5,
+        'tritanium': 0,
+        'adamantium': 0,
+        'productionpoints': 4,
+        'fuel': 0,
+        'firepower': 0,
+        'damage': 0,
+        'research': {'duranium': None}
+    },
+    'fighters': {
+        'geu': 50,
+        'duranium': 1,
+        'tritanium': 0,
+        'adamantium': 0,
+        'productionpoints': 1,
+        'fuel': 1,
+        'firepower': 1,
+        'damage': 1,
+        'research': {'duranium': None}
+    },
+    'corvettes': {
+        'geu': 100,
+        'duranium': 5,
+        'tritanium': 0,
+        'adamantium': 0,
+        'productionpoints': 4,
+        'fuel': 2,
+        'firepower': 5,
+        'damage': 5,
+        'research': {'duranium': 2}
+    },
+    'light_cruisers': {
+        'geu': 200,
+        'duranium': 10,
+        'tritanium': 0,
+        'adamantium': 0,
+        'productionpoints': 6,
+        'fuel': 3,
+        'firepower': 10,
+        'damage': 10,
+        'research': {'duranium': 4}
+    },
+    'destroyers': {
+        'geu': 300,
+        'duranium': 15,
+        'tritanium': 5,
+        'adamantium': 0,
+        'productionpoints': 12,
+        'fuel': 4,
+        'firepower': 15,
+        'damage': 15,
+        'research': {'duranium': 8, 'tritanium': 2}
+    },
+    'frigates': {
+        'geu': 400,
+        'duranium': 20,
+        'tritanium': 10,
+        'adamantium': 0,
+        'productionpoints': 24,
+        'fuel': 5,
+        'firepower': 20,
+        'damage': 20,
+        'research': {'duranium': 12, 'tritanium': 4}
+    },
+    'heavy_cruisers': {
+        'geu': 500,
+        'duranium': 25,
+        'tritanium': 15,
+        'adamantium': 0,
+        'productionpoints': 40,
+        'fuel': 6,
+        'firepower': 25,
+        'damage': 25,
+        'research': {'duranium': 16, 'tritanium': 8}
+    },
+    'battlecruisers': {
+        'geu': 600,
+        'duranium': 30,
+        'tritanium': 20,
+        'adamantium': 5,
+        'productionpoints': 72,
+        'fuel': 8,
+        'firepower': 30,
+        'damage': 30,
+        'research': {'duranium': 20, 'tritanium': 12, 'adamantium': 2}
+    },
+    'battleships': {
+        'geu': 800,
+        'duranium': 35,
+        'tritanium': 25,
+        'adamantium': 10,
+        'productionpoints': 180,
+        'fuel': 10,
+        'firepower': 35,
+        'damage': 35,
+        'research': {'duranium': 25, 'tritanium': 15, 'adamantium': 5}
+    },
+    'dreadnoughts': {
+        'geu': 1000,
+        'duranium': 40,
+        'tritanium': 30,
+        'adamantium': 20,
+        'productionpoints': 480,
+        'fuel': 15,
+        'firepower': 40,
+        'damage': 40,
+        'research': {'duranium': 30, 'tritanium': 20, 'adamantium': 10}
+    }, 
+    }
 
-    return cost, dur, trit, adam, shipyards, hours, fuel
 
-# Industrial Program
-def inddetails(world):
-    'Variables for industrial program.'
-    if world.econsystem == 0:
-        indcap = 1200
-        indcost = 80
-    elif world.econsystem == -1:
-        indcap = 2400
-        indcost = 60
-    else:
-        indcap = 0
-        indcost = 'N/A'
-    return indcap, indcost
+    if region == 'bion':
+        for key, value in costs.iteritems():
+            value['geu'] *= 0.85
+            value['duranium'] *=int(round(value['duranium'] * 0.8))
+            value['tritanium'] *=int(round(value['tritanium'] * 0.8))
+            value['adamantium'] *=int(round(value['adamantium'] * 0.8))
+            value['productionpoints'] *=int(round(value['productionpoints'] * 0.9))
+    return costs
+
 
 #Current time
 def now():
@@ -195,18 +328,18 @@ poldata = [
     ]
 
 # Comm for new worlds
-introcomm = "Welcome to Worlds at War! A comprehensive guide is here: http://wawgame.eu/guide " + \
-    "(though it's a lot easier than it looks!), and rules for the game and forums are here: http://wawgame.eu/rules. " + \
-    "Please do visit the forums, you'll enjoy the game a lot more if you participate in the metagame. " + \
-    "As an encouragement you get a small in-game bonus if you post here: http://wawgame.eu/forums/index.php?topic=5282. " + \
-    "Finally, many thanks for trying the game out! I hope you enjoy yourself and stick around. - heidi"
+introcomm = "Welcome to Worlds at War 5!"
 
 # Donator list
-donatorlist = [1, 5, 7, 10, 11, 23, 25, 33, 37, 39, 41, 55, 56, 59, 66, 70, 77, 106, 127, 144, 191, 192, 193, 215, 230, 246, 324,
-    367, 379, 384, 391, 411, 436, 441, 514, 612, 614, 617, 685, 733, 786, 907, 915, 972, 1060, 1107, 1111, 1250, 1573, 1643, 1721,
-    1808, 1826, 2043, 2172, 2302, 2323, 2341, 2348, 2378, 3091, 3138, 3142, 3156, 3168, 3205, 3229, 3274, 3279, 3281, 3305, 3383,
-    3471, 3475, 3508, 3550, 3578, 3886]
-
+donorlist = [
+'Argentina', 'YeshuaChrist', 'dissonanz', 'Big Willy', 'Genghis Khan',
+'Ept2415', 'CommyWommy', 'DrKourin', 'Bilbo_Swaggins',
+'Admiral_Parangosky', 'Slim', 'dable', 'Reagan', 'Rampagingwalrus', 'Caesar', 'niko', 'S37H',
+'Kronos', 'Proditor', 'FinalSolution', 'Frank_Underwood', 'InfantImpaler', 'Kamakazi_Sunshine',
+'Bubblegum', 'Crontical', 'Lykos', 'taikuh', 'Cotton', ' Ashe', 'Reuenthal', 'Clarissa', 'Crusader1488', 
+'Whiskertoes', 'amazinglyaverage', 'Mengele-chan', 'Karazian', 'Lunin', 'cyrussteel', 'Noxmillien',
+'Obersturmbannfuhrer', 'FlawedFlock', 'Uther_Fudreim', 'Speckled_Jim', 'Tibus_Heth', 'Joseph-Stalin',
+]
 # Rumsoddium messages
 rumsodeconomy = 'The ritual worked perfectly. The pieces of rumsoddium glowed gently in the radio waves at first, but grew ' + \
     'brighter and brighter until a green beam shot out above the tetrahedron, punching a hole in the roof. The entire ' + \

@@ -1,7 +1,7 @@
 # Django Imports
 import django
 django.setup()
-from celery import task
+from celery import shared_task, task
 from celery.task.schedules import crontab
 from celery.decorators import periodic_task
 from django.db.models import F
@@ -10,6 +10,7 @@ from django.core.urlresolvers import reverse
 # Python Imports
 import random, datetime
 import decimal
+import json
 
 # WaW Imports
 from wawmembers.models import *
@@ -29,33 +30,44 @@ D = decimal.Decimal
 def now():
     return v.now().strftime('%d %b %H:%M:%S')
 
-# every 20 min
+# every 20 min budget generation
+#with upkeep subtracted
 @periodic_task(run_every=crontab(minute="0,20,40", hour="*", day_of_week="*"))
 def addbudget():
-
-    for world in World.not_vacation_objects.all().iterator():
+    for world in World.objects.select_related('preferences').all().iterator():
+        if world.preferences.vacation:
+            continue
+        result = 0
+        upkeep = 0
         toadd = update.toadd(world).quantize(D('.1')) # round to 1dp
         cap = update.budgetcap(world)
-
-        if world.budget > cap: # no adding
-            pass
-        elif D(cap)-D(toadd) <= world.budget <= 3*cap: # set to cap
-            world.budget = cap
-            world.save(update_fields=['budget'])
-        else:
-            world.budget = F('budget') + toadd
-            world.save(update_fields=['budget'])
+        for entry in v.upkeep:
+            upkeep += world.__dict__[entry] * v.upkeep[entry]
+        if world.sector == 'cleon':
+            upkeep *= 0.8 #total upkeep
+        upkeep = D(upkeep) / D(36.0) #3 updates per hour 12 hours per turn
+        if world.budget - upkeep > cap:
+            continue
+        result = toadd - upkeep
+        result *= 2
+        utilities.atomic_world(world.pk, {'budget': {'action': 'add', 'amount': result}})
 
 
 # every turn change
-@periodic_task(run_every=crontab(minute="1", hour="0,12", day_of_week="*"))
-def attributeturnchange():
-
-    for world in World.not_vacation_objects.all().iterator():
-
-        update.tradeavailability(world)
-
-        # Value calculation
+@periodic_task(run_every=crontab(minute="1", hour="0, 12", day_of_week="*"))
+def worldattributeturnchange():
+    GlobalData.objects.filter(pk=1).update(turnbackground=v.background())
+    multiloginlist = {}
+    for world in World.objects.select_related('preferences').prefetch_related('controlled_fleets').all().iterator():
+        if world.preferences.vacation:
+            continue
+        randomevents(world)
+        #heidis multi shit
+        try:
+            multiloginlist[world.lastloggedinip].append(world.pk)
+        except KeyError:
+            multiloginlist[world.lastloggedinip] = [world.pk]
+        # Value calculationad
         contstab = update.contstab(world)
         contqol = update.contqol(world)
         contreb = update.contreb(world)
@@ -63,23 +75,9 @@ def attributeturnchange():
         stabqol = update.stabqol(world)
         stabreb = update.stabreb(world)
         rebstab = update.rebstab(world)
-        grotrade, geu = update.grotrade(world, True)
-        grostab = update.grostab(world)
-        gropol = world.growth
-
-        world.budget = F('budget') + geu
-        world.save(update_fields=['budget'])
-        world = World.objects.get(pk=world.pk)
-
-        if world.budget < world.industrialprogram:
-            underallocated = True
-            allocated = world.budget
-        else:
-            underallocated = False
-            allocated = world.industrialprogram
-
-        groind, returned = update.groind(world, allocated)
-        groind += update.groindvar(groind)
+        warpfuel = world.warpfuel + world.warpfuelprod
+        change = (world.qol+140)/float(40)
+        change = (round(change-1) if change > 0 else round(change-0.5))
 
         # Text generation
         updatelist = []
@@ -90,84 +88,86 @@ def attributeturnchange():
         updatelist.append(update.stabqolnotif(stabqol))
         updatelist.append(update.stabrebnotif(stabreb))
         updatelist.append(update.rebstabnotif(rebstab))
-        updatelist.append(update.growthnotif(int(grotrade), int(grostab), int(gropol), int(groind)))
-        updatelist.append(update.groallocnotif(underallocated))
+        updatelist.append(update.growthnotif(world.growth - update.grostab(world), update.growthdecay(world)))
 
         # Updates
-        world.gdp = F('gdp') + grotrade + grostab + gropol + groind
-        utilities.contentmentchange(world, (contstab + contreb + contqol))
-        utilities.stabilitychange(world, (stabcont + stabqol + stabreb))
-        utilities.rebelschange(world, rebstab)
-        world.budget = F('budget') - allocated + returned
-        world.growth = 0
-        Agreement.objects.filter(sender=world).update(available=True)
-
-        world.save(update_fields=['gdp','budget','growth'])
-
+        fuelcost = fleet_update(world.controlled_fleets.all(), warpfuel)
+        rebels = utilities.attrchange(world.rebels, rebstab, zero=True)
+        growthincrease = update.grostab(world) - update.growthdecay(world)
+        
+        actions = {
+        'productionpoints': {'action': 'set', 'amount': world.shipyards*12},
+        'contentment': {'action': 'add', 'amount': utilities.attrchange(world.contentment, contstab + contreb + contqol)},
+        'stability': {'action': 'add', 'amount': utilities.attrchange(world.stability, stabcont + stabqol + stabreb)},
+        'rebels': {'action': 'add', 'amount': rebels},
+        'qol': {'action': 'subtract', 'amount': change},
+        'growth': {'action': 'add', 'amount': growthincrease},
+        'turnsalvaged': {'action': 'set', 'amount': False},
+        'warpfuel': {'action': 'add', 'amount': world.warpfuelprod - fuelcost},
+        'duranium': {'action': 'add', 'amount': world.duraniumprod},
+        'tritanium': {'action': 'add', 'amount': world.tritaniumprod},
+        'adamantium': {'action': 'add', 'amount': world.adamantiumprod},
+        'econchanged': {'action': 'set', 'amount': False},
+        'warsperturn': {'action': 'set', 'amount': 0},
+        'turnresearched': {'action': 'set', 'amount': False},
+        'gdp': {'action': 'add', 'amount': world.growth}
+        }
+        resetsturnchange(world)
         # Notification
         update.turndetails(world, updatelist)
-
-
-@periodic_task(run_every=crontab(minute="2", hour="0,12", day_of_week="*"))
-def miscturnchange():
-
-    GlobalData.objects.filter(pk=1).update(turnbackground=v.background())
-
-    for world in World.not_vacation_objects.all().iterator():
-        # Adding materials
-        world.duranium = F('duranium') + world.duraniumprod
-        world.tritanium = F('tritanium') + world.tritaniumprod
-        world.adamantium = F('adamantium') + world.adamantiumprod
-
-        # Salvage
-        world.turnsalvaged = False
-
-        # QoL decay
-        change = round((world.qol+140)/float(40))
-        utilities.qolchange(world, -change)
-
-        # Other misc stuff
-        world.warsperturn = 0
-        world.econchanged = False
-        world.turnresearched = False
-        if world.shipyardsinuse < 0:
-            world.shipyardsinuse = 0
-        if world.freightersinuse < 0:
-            world.freightersinuse = 0
+        utilities.atomic_world(world.pk, actions)
         world.declaredwars.clear()
+    #multi stuff
+    update.multidetect(multiloginlist, 'Login')
+    #chain turn functions instead of time offset
+    return shipbuilding_update()
 
-        world.save(update_fields=['duranium','tritanium','adamantium','warsperturn','econchanged','turnresearched',
-            'shipyardsinuse','freightersinuse','turnsalvaged'])
-
-
-@periodic_task(run_every=crontab(minute="3", hour="0,12", day_of_week="*"))
-def militaryturnchange():
-
-    for world in World.not_vacation_objects.all().iterator():
-        fuelloss = update.fuelcost(world)
-
-        if world.warpfuel + world.warpfuelprod - fuelloss < 0:
-            world.warpfuel = 0
-            wearchange = -100
-            update.nofuel(world)
+def shipbuilding_update():
+    for order in shipqueue.objects.select_related('fleet').all().iterator():
+        if order.fleet.world.sector == order.fleet.sector:
+            outcome = "%s has been delivered to %s!" % (order.content(), order.fleet.name)
         else:
-            world.warpfuel = F('warpfuel') + (world.warpfuelprod - fuelloss)
-            wearchange = 40
+            outcome = "%s has warped out of the sector! %s was delivered to the hangar" % (
+                order.fleet.name, order.content())
+            order.fleet = order.world.fleets.all().get(sector="hangar")
+        Task.objects.filter(pk=order.task.pk).update(outcome=outcome)
+        utilities.atomic_fleet(order.fleet.pk, {'mergeorder': order})
+    return spyturnchange()
+    
+def fleet_update(fleets, available_fuel):
+    nofuellist = []
+    totalfuelcost = 0
+    for f in fleets:
+        fuelcost = f.fuelcost() * v.fuelupkeep
+        if fuelcost <= available_fuel:
+            available_fuel -= f.fuelcost() * v.fuelupkeep
+            totalfuelcost += f.fuelcost() * v.fuelupkeep
+            fuel = True
+        else:
+            fuel = False
+            nofuellist.append(f)
+        fleet_changes(f, fuel)
+    if nofuellist:
+        update.nofuel(fleets[0].controller, fleets)
+    return totalfuelcost
 
-        for region in ['A', 'B', 'C', 'D']:
-            utilities.wearinesschange(world, region, wearchange)
-
-        for region in ['A', 'B', 'C', 'D', 'S', 'H']:
-            maximum = utilities.trainingfromlist(utilities.regionshiplist(world, region))
-            factor = (0.2 if region == 'H' else 0.02)
-            utilities.trainingchange(world, region, -int(maximum*factor))
-
-        world.startpower = utilities.militarypower(world, world.region) + utilities.militarypower(world, 'S')
-        world.powersent = 0
-
-        world.save(update_fields=['warpfuel','startpower','powersent'])
-
-
+def fleet_changes(tochange, fuel):
+    training = tochange.training - (tochange.maxtraining() * (0.1 if tochange.sector == 'hangar' else 0.02))
+    if training < 0:
+        training = 0
+    actions = {'set': {'training': training, 'attacked': False}}
+    if fuel:
+        weariness = tochange.weariness + 40
+        if weariness > 200:
+            weariness = 200        
+    else:
+        weariness = tochange.weariness - 100
+        if weariness < 0:
+            weariness = 0
+    if tochange.sector != 'hangar':
+        actions['set'].update({'weariness': weariness})
+    utilities.atomic_fleet(tochange.pk, actions)
+ 
 @periodic_task(run_every=crontab(minute="4", hour="0,12", day_of_week="*"))
 def techlevels():
     'Tech proliferation.'
@@ -211,23 +211,19 @@ def techlevels():
         millevels.save(update_fields=['corlevel'])
 
 
-@periodic_task(run_every=crontab(minute="5", hour="0,12", day_of_week="*"))
 def spyturnchange():
-
-    for spy in Spy.objects.all().iterator():
+    for spy in Spy.objects.select_related('owner', 'location', 'location__preferences').all().iterator():
         if spy.location != spy.owner:
-            if spy.location.vacation:
+            if spy.location.preferences.vacation:
                 spy.locationreset()
                 update.spyvacation(spy.owner)
             else:
                 spy.timespent += 1
                 spy.save(update_fields=['timespent'])
+    return cleanups()
 
 
-@periodic_task(run_every=crontab(minute="6", hour="0,12", day_of_week="*"))
-def randomevents():
-
-    for world in World.not_vacation_objects.all().iterator():
+def randomevents(world):
 
         # Goverment trigger
         if -60 < world.polsystem < -20:
@@ -268,10 +264,7 @@ def randomevents():
             ActionNewsItem.objects.create(target=world, content=htmldata, actiontype=10)
 
 
-@periodic_task(run_every=crontab(minute="7", hour="0,12", day_of_week="*"))
-def resetsturnchange():
-
-    for world in World.not_vacation_objects.all().iterator():
+def resetsturnchange(world):
         if world.gdp < 250:
             update.gdpreset(world)
         if world.stability < -80:
@@ -280,24 +273,12 @@ def resetsturnchange():
                 update.stabreset(world)
 
 
-@periodic_task(run_every=crontab(minute="8", hour="0", day_of_week="*"))
-def loginmultidetect():
-    multiloginlist = {}
-    for world in World.objects.all().iterator():
-        try:
-            multiloginlist[world.lastloggedinip].append(world.worldid)
-        except KeyError:
-            multiloginlist[world.lastloggedinip] = [world.worldid]
-    update.multidetect(multiloginlist, 'Login')
-
-
-@periodic_task(run_every=crontab(minute="9", hour="0", day_of_week="*"))
 def cleanups():
     for anno in Announcement.objects.all().iterator():
         if v.now() > (anno.datetime + datetime.timedelta(days=5)):
             anno.delete()
     for trade in Trade.objects.all().iterator():
-        if v.now() > (trade.datetime + datetime.timedelta(days=2)):
+        if v.now() > (trade.posted + datetime.timedelta(days=2)):
             update.tradetimeout(trade)
             trade.delete()
     for actionnews in ActionNewsItem.objects.all().iterator():
@@ -309,341 +290,139 @@ def cleanups():
     for mynews in NewsItem.objects.all().iterator():
         if v.now() > (mynews.datetime + datetime.timedelta(weeks=4)):
             mynews.delete()
+    return warcleanup()
 
 
-@periodic_task(run_every=crontab(minute="10", hour="0", day_of_week="*"))
 def warcleanup():
     for war in War.objects.all().iterator():
         attacktimeout = False
-        if v.now() > war.timetonextattack + datetime.timedelta(hours=36) and v.now() > war.timetonextattack + datetime.timedelta(hours=36):
+        if v.now() > war.lastattack + datetime.timedelta(hours=36) and v.now() > war.lastattack + datetime.timedelta(hours=36):
             attacktimeout = True
         if v.now() > (war.starttime + datetime.timedelta(weeks=1)) or attacktimeout:
-            attacker = war.attacker
-            defender = war.defender
+            update.wartimeout(war.attacker, war.defender)
             war.delete()
-            update.wartimeout(attacker, defender)
-
-
-@periodic_task(run_every=crontab(minute="11", hour="0,12", day_of_week="*"))
-def gdpthresholdreset():
-    for world in World.not_vacation_objects.all().iterator():
-        sale, created = GDPSaleThresholdManager.objects.update_or_create(target=world, defaults={"sellthreshold": world.gdp*0.25, "buythreshold": world.gdp*0.5})
-
-
-@periodic_task(run_every=crontab(minute="59", hour="23", day_of_week="sun"))
-def lotterywinner():
-    tochoice = LotteryTicket.objects.all()
-    if len(tochoice) == 0:
-        winner = World.objects.get(worldid=1)
-    else:
-        winning = random.choice(LotteryTicket.objects.all())
-        winner = winning.owner
-    prizepot = len(tochoice)*75 + 200
-
-    winner.budget = F('budget') + prizepot
-    winner.save(update_fields=['budget'])
-
-    newstext = "Well done, %s! You're the lucky winner of the galactic lottery, with a prize pot of %s GEU!" % (winner.user_name, prizepot)
-    NewsItem.objects.create(target=winner, content=newstext)
-
-    LotteryTicket.objects.all().delete()
-
-    GlobalData.objects.filter(pk=1).update(lotterywinnerid=winner.worldid, lotterywinneramount=prizepot)
 
 
 ### Non-periodic tasks
 
+
 @task
-def buildfreighter(worldno, taskid, amount):
-    world = World.objects.get(worldid=worldno)
-
-    if world.shipyardsinuse - 2*amount < 0:
-        world.shipyardsinuse = 0
-    else:
-        world.shipyardsinuse = F('shipyardsinuse') - 2*amount
-    world.save(update_fields=['shipyardsinuse'])
-
-    if 'prodstaging' in world.shipsortprefs:
-        destination = 'staging area'
-        utilities.freightermove(world, 'S', amount)
-    else:
-        destination = 'home fleet'
-        utilities.freightermove(world, world.region, amount)
-
-    pluralise = ("freighter was" if amount == 1 else "%s freighters were" % amount)
-
-    task = Task.objects.get(pk=taskid)
-    task.outcome = "Your %s completed and delivered to your %s on %s." % (pluralise, destination, now())
-    task.save()
+def shipaid(senderpk, recipientpk, taskid, ship, amount, training):
+    world = World.objects.get(pk=senderpk)
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    target = World.objects.get(pk=recipientpk)
+    tgtfleet = target.preferences.recievefleet
+    action = {'add': {ship: amount, 'training': training}}
+    utilities.atomic_fleet(tgtfleet.pk, action)
+    outcome = "We recieved %s %s from %s at %s" % (amount, 
+        shiptype.replace('_', ' ').capitalize(), sender, now())
+    Task.objects.filter(pk=taskid).update(outcome=outcome)
 
 
 @task
-def buildship(worldno, taskid, shiptype, amount, yards):
-    world = World.objects.get(worldid=worldno)
-
-    if world.shipyardsinuse - yards*amount < 0:
-        world.shipyardsinuse = 0
+def directaid(worldno, targetno, taskid, resources, freighters):
+    worlds = World.objects.filter(Q(pk=worldno)|Q(pk=targetno))
+    world = worlds.get(pk=worldno)
+    target = worlds.get(pk=targetno)
+    action = {'freightersinuse': {'action': 'subtract', 'amount': freighters}}
+    utilities.atomic_world(worldno, action) #set freighters for sender
+    log = ResourceLog.objects.create(owner=target, target=world)
+    resource_text = ""
+    if len(resources) == 1:
+        resource_text = "%s %s" % (resources[0][1], resources[0][0])
+        action = {resources[0][0]: {'action': 'add', 'amount': resources[0][1]}}
+        Logresource.objects.create(resource=resource[0][0], amount=resource[0][1], log=log)
     else:
-        world.shipyardsinuse = F('shipyardsinuse') - yards*amount
-    world.save(update_fields=['shipyardsinuse'])
-
-    if 'prodstaging' in world.shipsortprefs:
-        destination = 'staging area'
-        utilities.movecomplete(world, shiptype, amount, 'S', 0)
-    else:
-        destination = 'home fleet'
-        utilities.movecomplete(world, shiptype, amount, world.region, 0)
-
-    name = utilities.resname(shiptype+10, amount, lower=True)
-
-    pluralise = ("%s was" % name if amount == 1 else "%s %s were" % (amount, name))
-
-    task = Task.objects.get(pk=taskid)
-    task.outcome = "Your %s completed and delivered to your %s on %s." % (pluralise, destination, now())
-    task.save()
-
-
-@task
-def buildpersonalship(worldno, taskid, shiptype):
-    world = World.objects.get(worldid=worldno)
-
-    world.shipyardsinuse = F('shipyardsinuse') - 5
-    world.flagshiptype = shiptype
-    world.flagshiplocation = world.region
-
-    if shiptype == 1:
-        world.flagshippicture = 'pf01'
-    elif shiptype == 2:
-        world.flagshippicture = 'my01'
-    elif shiptype == 3:
-        world.flagshippicture = 'cs01'
-
-    world.save(update_fields=['shipyardsinuse', 'flagshiptype', 'flagshiplocation','flagshippicture'])
-
-    name = display.personalshipname(shiptype)
-
-    task = Task.objects.get(pk=taskid)
-    task.outcome = "Your %s was completed and delivered to your home fleet on %s." % (name, now())
-    task.save()
-
-    try:
-        world.flagshipbuild = False
-        world.save(update_fields=['flagshipbuild'])
-    except:
-        pass
-
-
-@task
-def moveship(worldno, taskid, amount, shiptype, shiptext, regionfrom, regionto, fuelcost, trainingchange):
-    world = World.objects.get(worldid=worldno)
-    try:
-        task = Task.objects.get(pk=taskid)
-    except:
-        pass # revoked
-    else:
-        fromname = display.region_display(regionfrom)
-        toname = display.region_display(regionto)
-        movecheck = utilities.movecheck(world, shiptype, amount, regionfrom)
-        if not movecheck:
-            htmldata = "Your attempt to warp %s %s from %s to %s failed as you did not have enough ships." \
-                        % (amount, shiptext, regionfrom, regionto)
-            NewsItem.objects.create(target=world, content=htmldata)
-            task.outcome = "You did not have enough ships to warp %(amount)s %(ship)s from %(from)s to %(to)s!" \
-                        % {'amount':amount, 'ship':shiptext, 'from':fromname, 'to':toname}
-        elif world.warpfuel < fuelcost:
-            htmldata = "Your attempt to warp %s %s from %s to %s failed as you did not have enough fuel." \
-                        % (amount, shiptext, regionfrom, regionto)
-            NewsItem.objects.create(target=world, content=htmldata)
-            task.outcome = "You did not have enough fuel to warp %(amount)s %(ship)s from %(from)s to %(to)s!" \
-                        % {'amount':amount, 'ship':shiptext, 'from':fromname, 'to':toname}
-        else:
-            attloss = ''
-            world.warpfuel = F('warpfuel') - fuelcost
-            if world.wardefender.count() > 0 and regionfrom == world.region:
-                utilities.contentmentchange(world, -10)
-                utilities.stabilitychange(world, -5)
-                attloss = 'You were in a defensive war, and you lost perception and stability by sending ships away from your home!'
-            world.save(update_fields=['warpfuel'])
-            utilities.movecomplete(world,shiptype,-amount,regionfrom,-trainingchange)
-            utilities.movecomplete(world,shiptype,amount,regionto,trainingchange)
-
-            task.outcome = "Your %(amount)s %(ship)s warped from %(from)s to %(to)s on %(time)s. %(att)s" \
-                        % {'amount':amount, 'ship':shiptext, 'from':fromname, 'to':toname, 'time':now(), 'att':attloss}
-
-        task.save()
-
-
-@task
-def movepersonalship(worldno, taskid, regionfrom, regionto):
-    world = World.objects.get(worldid=worldno)
-    try:
-        task = Task.objects.get(pk=taskid)
-    except:
-        pass
-    else:
-        fromname = display.region_display(regionfrom)
-        toname = display.region_display(regionto)
-        check = (True if world.flagshiptype != 0 else False)
-        if not check:
-            htmldata = "Your personal ship was destroyed before it could warp from %s to %s!" % (fromname, toname)
-            NewsItem.objects.create(target=world, content=htmldata)
-            task.outcome = "Your personal ship was destroyed before it could warp from %s to %s!" % (fromname, toname)
-        elif world.warpfuel < 5:
-            htmldata = news.notenoughpersonal(amount, shiptext, fromname, toname, 'fuel')
-            NewsItem.objects.create(target=world, content=htmldata)
-            task.outcome = "You did not have enough fuel to warp your personal ship from %s to %s!" % (fromname, toname)
-        else:
-            attloss = ''
-            world.warpfuel = F('warpfuel') - 5
-            world.flagshiplocation = regionto
-            if world.wardefender.count() > 0 and regionfrom == world.region:
-                utilities.contentmentchange(world, -10)
-                utilities.stabilitychange(world, -5)
-                attloss = 'You were in a defensive war, and you lost perception and stability by sending ships away from your home!'
-            world.save(update_fields=['warpfuel','flagshiplocation'])
-
-            task.outcome = "Your personal ship warped from %(from)s to %(to)s on %(time)s. %(att)s" \
-                        % {'from':fromname, 'to':toname, 'time':now(), 'att':attloss}
-
-        task.save()
-
-
-@task
-def movefreighter(worldno, taskid, amount, regionfrom, regionto):
-    world = World.objects.get(worldid=worldno)
-    try:
-        task = Task.objects.get(pk=taskid)
-    except:
-        pass
-    else:
-        fromname = display.region_display(regionfrom)
-        toname = display.region_display(regionto)
-        movecheck = utilities.freightercheck(world, regionfrom, amount)
-        if not movecheck:
-            htmldata = news.notenough(amount, 'freighters', fromname, toname, 'of them')
-            NewsItem.objects.create(target=world, content=htmldata)
-            task.outcome = "You did not have enough freighters to warp %(amount)s of them from %(from)s to %(to)s!" \
-                        % {'amount':amount, 'from':fromname, 'to':toname}
-        else:
-            utilities.freightermove(world, regionfrom, -amount)
-            utilities.freightermove(world, regionto, amount)
-
-            task.outcome = "Your %(amount)s freighters warped from %(from)s to %(to)s on %(time)s." \
-                        % {'amount':amount, 'from':fromname, 'to':toname, 'time':now()}
-
-        task.save()
-
-
-@task
-def mothball(worldno, taskid, amount, shiptype, shiptext, fuelcost, trainingchange, direction):
-    world = World.objects.get(worldid=worldno)
-    try:
-        task = Task.objects.get(pk=taskid)
-    except:
-        pass
-    else:
-        if direction == 'plus':
-            if 'sendstaging' in world.shipsortprefs:
-                movecheck = utilities.movecheck(world, shiptype, amount, 'S')
+        action = {}
+        for i, resource in enumerate(resources, 1):
+            resource_text += "%s %s" % (resource[1], resource[0])
+            if len(resources) - 1 == i:
+                resource_text += ' and '
             else:
-                movecheck = utilities.movecheck(world, shiptype, amount, world.region)
-            if not movecheck:
-                htmldata = news.mothball(amount, shiptext, 'ships', 'plus')
-                newsitem = NewsItem(target=world, content=htmldata)
-                newsitem.save()
-                task.outcome = "You did not have enough ships to mothball %s %s!" % (amount, shiptext)
-            else:
-                attloss = ''
-                if world.wardefender.count() > 0:
-                    utilities.contentmentchange(world, -10)
-                    utilities.stabilitychange(world, -5)
-                    attloss = 'You were in a defensive war and your have lost perception and stability by mothballing ships!'
+                resource_text += ', '
+            action.update({resources[0]: {'action': 'add', 'amount': resources[1]}})
+            Logresource.objects.create(resource=resource[0], amount=resource[1], log=log)
+        resource_text = resource_text[:-2]
+    utilities.atomic_world(targetno, action) #add to target
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
 
-                if 'sendstaging' in world.shipsortprefs:
-                    utilities.movecomplete(world,shiptype,-amount,'S',-trainingchange)
-                else:
-                    utilities.movecomplete(world,shiptype,-amount,world.region,-trainingchange)
-                utilities.movecomplete(world,shiptype,amount,'H',trainingchange)
-
-                task.outcome = "Your %(amount)s %(ship)s successfully entered orbital hangars on %(time)s. %(att)s" \
-                            % {'amount':amount, 'ship':shiptext, 'time':now(), 'att':attloss}
-
-        if direction == 'minus':
-            movecheck = utilities.movecheck(world, shiptype, amount, 'H')
-            if not movecheck:
-                htmldata = news.mothball(amount, shiptext, 'ships', 'minus')
-                NewsItem.objects.create(target=world, content=htmldata)
-                task.outcome = "You did not have enough ships to mothball %s %s!" % (amount, shiptext)
-            elif world.warpfuel < fuelcost:
-                htmldata = news.mothball(amount, shiptext, 'fuel', 'minus')
-                NewsItem.objects.create(target=world, content=htmldata)
-                task.outcome = "You did not have enough fuel for your %s %s to re-enter active service!" % (amount, shiptext)
-            else:
-                world.warpfuel = F('warpfuel') - fuelcost
-                world.save(update_fields=['warpfuel'])
-                utilities.movecomplete(world,shiptype,-amount,'H',-trainingchange)
-                if 'receivestaging' in world.shipsortprefs:
-                    utilities.movecomplete(world,shiptype,amount,'S',trainingchange)
-                else:
-                    utilities.movecomplete(world,shiptype,amount,world.region,trainingchange)
-
-                task.outcome = "Your %(amount)s %(ship)s successfully re-entered active service in the home fleet on %(time)s." \
-                            % {'amount':amount, 'ship':shiptext, 'time':now()}
-
-        task.save()
-
-
-@task
-def directaid(worldno, targetno, taskid, send, sendamount, trainingchange, freighters):
-    world = World.objects.get(worldid=worldno)
-    target = World.objects.get(worldid=targetno)
-    utilities.resourcecompletion(target, send, sendamount, trainingchange)
-
-    world.freightersinuse = F('freightersinuse') - freighters
-    world.save(update_fields=['freightersinuse'])
-    utilities.freightermove(world, world.region, freighters)
-
-    resname = utilities.resname(send, sendamount)
-
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-    fullworld = '<a href="%(link)s">%(world)s</a>' % {'link':linkworld,'world':world.world_name}
-
-    ResourceLog.objects.create(owner=target, target=world, res=send, amount=sendamount, sent=False, trade=False)
-
-    htmldata = news.directaidcompletion(world, resname, sendamount)
+    htmldata = news.directaidcompletion(world, resources)
     NewsItem.objects.create(target=target, content=htmldata)
 
-    utilities.spyintercept(target, world, resname, sendamount)
-
-    task = Task.objects.get(pk=taskid)
-    task.outcome = "We received %(amount)s %(name)s from %(world)s on %(time)s." \
-                % {'amount':sendamount, 'name':resname, 'world':fullworld, 'time':now()}
-    task.save()
+    #utilities.spyintercept(target, world, resources)
+    outcome = "We received %s from %s on %s." % (resource_text, fullworld, now())
+    Task.objects.filter(pk=taskid).update(outcome=outcome)
 
 
 @task
-def tradecomplete(worldno, targetno, taskid, send, sendamount, trainingchange, freighters):
-    world = World.objects.get(worldid=worldno)
-    target = World.objects.get(worldid=targetno)
-    utilities.resourcecompletion(target, send, sendamount, trainingchange)
-
-    world.freightersinuse = F('freightersinuse') - freighters
-    world.save(update_fields=['freightersinuse'])
-    utilities.freightermove(world, world.region, freighters)
-
-    resname = utilities.resname(send, sendamount)
-
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-    fullworld = '<a href="%(link)s">%(world)s</a>' % {'link':linkworld,'world':world.world_name}
-
-    ResourceLog.objects.create(owner=target, target=world, res=send, amount=sendamount, sent=False, trade=True)
-
-    htmldata = news.tradecompletion(world, resname, sendamount)
+def fleetaid(worldpk, targetpk, taskpk, fleetpk, lending=True):
+    world = World.objects.get(pk=worldpk)
+    targetworld = World.objects.get(pk=targetpk)
+    task = Task.objects.get(pk=taskpk)
+    transferfleet = fleet.objects.get(pk=fleetpk)
+    actions = {'set': {'controller': targetworld, 'sector': targetworld.sector}}
+    if lending is False: #recipient is granted ownership
+        actions['set'].update({'world': targetworld})
+    utilities.atomic_fleet(transferfleet.pk, actions) #sets attributes in a safe way
+    htmldata = news.fleetaidcompletion(world, transferfleet.name)
     NewsItem.objects.create(target=target, content=htmldata)
+    ResourceLog.objects.create(owner=target, target=world, res=transferfleet.name, amount=1, sent=False, trade=False)
+    outcome = "We recieved fleet %s from %s at %s!" % (transferfleet.name, world.name, now())
+    task = Task.objects.filter(pk=taskpk).update(outcome=outcome)
 
-    utilities.spyintercept(target, world, resname, sendamount)
 
-    task = Task.objects.get(pk=taskid)
-    task.outcome = "We received %(amount)s %(name)s from our trade with %(world)s on %(time)s." \
-                % {'amount':sendamount, 'name':resname, 'world':fullworld, 'time':now()}
-    task.save()
+@task
+def tradecomplete(senderpk, recieverpk, taskid, tradeoffer, total_in, required_freighters):
+    sender = World.objects.get(pk=senderpk)
+    reciever = World.objects.get(pk=recieverpk)
+    senderactions = {
+    'freighters': {'action': 'add', 'amount': required_freighters},
+    'freightersinuse': {'action': 'subtract', 'amount': required_freighters}
+    }
+    recieveractions = {tradeoffer: {'action': 'add', 'amount': total_in}}
+    utilities.atomic_world(senderpk, senderactions)
+    utilities.atomic_world(recieverpk, recieveractions)
+
+    fullworld = '<a href="%s">%s</a>' % (sender.get_absolute_url(), sender.name)
+
+    log = ResourceLog.objects.create(owner=reciever, target=sender, sent=False, trade=True)
+    Logresource.objects.create(resource=tradeoffer, log=log, amount=total_in)
+
+    htmldata = news.tradecompletion(sender, tradeoffer, total_in)
+    NewsItem.objects.create(target=reciever, content=htmldata)
+    #utilities.spyintercept(reciever, sender, actions)
+    outcome = "We received %(amount)s %(resource)s from our trade with %(world)s on %(time)s." \
+                % {'amount':total_in, 'resource': tradeoffer, 'world':fullworld, 'time':now()}
+    Task.objects.filter(pk=taskid).update(outcome=outcome)
+
+
+@task
+def shiptradecomplete(senderpk, recieverpk, taskid, ships, training):
+    #ships is a string argument
+    recipient = World.objects.get(pk=recieverpk)
+    sender = World.objects.get(pk=senderpk)
+    recievefleet = recipient.preferences.recievefleet
+    if recievefleet.sector != recipient.sector: #if out of sector, reset the choice
+        name = recievefleet.name
+        recievefleet = recipient.fleets.all().get(sector='hangar')
+        recipient.preferences.recievefleet = recievefleet
+        recipient.preferences.save()
+        NewsItem.objects.create(target=recipient, content="%s is out of sector so incoming ships will be directed to the hangar." % name)
+    amount, ship = ships.split(' ')
+    log = ResourceLog.objects.create(owner=recipient, target=sender, sent=False, trade=True)
+    Logresource.objects.create(resource=ship, log=log, amount=amount)
+    actions = {'add': {ship: int(amount), 'training': training}}
+    utilities.atomic_fleet(recievefleet.pk, actions)
+    htmldata = news.tradecompletionships(sender, ships)
+    NewsItem.objects.create(target=recipient, content=htmldata)
+    link = '<a href="%s">%s</a>' % (sender.get_absolute_url(), sender.name)
+    outcome = "%s has recieved %s from our trade with %s!" % (recievefleet.name, ships, link)
+
+    Task.objects.filter(pk=taskid).update(outcome=outcome)
+
+@task
+def fleet_warp(fleetpk, name, sector, taskpk):
+    actions = {'set': {'sector': sector}}
+    utilities.atomic_fleet(fleetpk, actions)
+    outcome="Fleet %s has arrived in sector %s at %s" % (name, sector, now())
+    Task.objects.filter(pk=taskpk).update(outcome=outcome)

@@ -1,7 +1,8 @@
 # Django Imports
 from django import forms
 from django.utils.translation import ugettext_lazy as _
-from registration.forms import RegistrationFormUniqueEmail as regform
+from django.db.models import Q
+#from registration.forms import RegistrationFormUniqueEmail as regform
 
 # WaW Imports
 from wawmembers.models import *
@@ -11,14 +12,14 @@ import wawmembers.utilities as utilities
 '''
 The logic behind every html form. Names should be self-explanatory.
 '''
-
+#no fucking logic here heidi
 # Re-used lists
 
 REGION_CHOICES = (
-    ('A', 'Amyntas'),
-    ('B', 'Bion'),
-    ('C', 'Cleon'),
-    ('D', 'Draco'),
+    ('amyntas', 'Amyntas'),
+    ('bion', 'Bion'),
+    ('cleon', 'Cleon'),
+    ('draco', 'Draco'),
 )
 
 shiplist = [('1','Fighters'),
@@ -31,6 +32,14 @@ shiplist = [('1','Fighters'),
             ('8','Battleships'),
             ('9','Dreadnoughts'),
             ]
+
+RESOURCE_CHOICES = (
+    ('budget', 'GEU'),
+    ('warpfuel', 'Warpfuel'),
+    ('duranium', 'Duranium'),
+    ('tritanium', 'Tritanium'),
+    ('adamantium', 'Adamantium')
+    )
 
 # Forms
 
@@ -51,95 +60,92 @@ class NewWorldForm(forms.Form):
     )
 
     worldname = forms.CharField(max_length=20, widget=forms.TextInput(attrs={'class':'countable','maxlength':'20'}), label="World Name")
-    region = forms.CharField(max_length=1, widget=forms.RadioSelect(choices=REGION_CHOICES, attrs={'id':'radioregion'}), label="Sector")
+    region = forms.ChoiceField(choices=REGION_CHOICES, widget=forms.RadioSelect(attrs={'id':'radioregion'}), label="Sector")
     econsystem = forms.IntegerField(widget=forms.RadioSelect(choices=ECON_CHOICES, attrs={'id':'radioecon'}), label="Economic System")
     polsystem = forms.IntegerField(widget=forms.RadioSelect(choices=POL_CHOICES, attrs={'id':'radiopol'}), label="Political System")
 
 
-class NewTradeForm(forms.Form):
-
-    def __init__(self, millevel, *args, **kwargs):
-        super(NewTradeForm, self).__init__(*args, **kwargs)
-
-        reslist = [('0','GEU'),
-                   ('1','Warpfuel'),
-                   ('2','Duranium'),
-                   ('3','Tritanium'),
-                   ('4','Adamantium'),
-                   ('11','Fighters'),
-                   ('12','Corvettes'),
-                   ('13','Light Cruisers'),
-                   ('14','Destroyers'),
-                   ('15','Frigates'),
-                   ('16','Heavy Cruisers'),
-                   ('17','Battlecruisers'),
-                   ('18','Battleships'),
-                   ('19','Dreadnoughts'),]
-
-        if millevel < v.millevel('cor'):
-            RESOURCE_CHOICES = reslist[:7]
-        elif millevel < v.millevel('lcr'):
-            RESOURCE_CHOICES = reslist[:8]
-        elif millevel < v.millevel('des'):
-            RESOURCE_CHOICES = reslist[:9]
-        elif millevel < v.millevel('fri'):
-            RESOURCE_CHOICES = reslist[:10]
-        elif millevel < v.millevel('hcr'):
-            RESOURCE_CHOICES = reslist[:11]
-        elif millevel < v.millevel('bcr'):
-            RESOURCE_CHOICES = reslist[:12]
-        elif millevel < v.millevel('bsh'):
-            RESOURCE_CHOICES = reslist[:13]
-        else:
-            RESOURCE_CHOICES = reslist
-
-        self.fields["offer"] = forms.IntegerField(widget=forms.Select(choices=RESOURCE_CHOICES, attrs={'id':'offerres'}))
-        self.fields["amountoff"] = forms.IntegerField(widget=forms.NumberInput(attrs={'size':'10', 'id':'offeramount'}), label="Amount")
-        self.fields["receive"] = forms.IntegerField(widget=forms.Select(choices=RESOURCE_CHOICES))
-        self.fields["amountrec"] = forms.IntegerField(widget=forms.NumberInput(attrs={'size':'10'}), label="Amount")
-        self.fields["amounttrades"] = forms.IntegerField(widget=forms.NumberInput(attrs={'size':'10', 'id':'tradesamount', 'value':1}),
-            label="No. of trades")
-
-
-class ShipMoveForm(forms.Form):
-
+class Blueprinttradeform(forms.Form):
     def __init__(self, world, *args, **kwargs):
-        super(ShipMoveForm, self).__init__(*args, **kwargs)
-
-        SHIP_CHOICES = utilities.formshiplist(world.millevel, list(shiplist), True)
-
-        flagship = (None if world.flagshiptype == 0 else ('10','Personal Ship'))
-
-        if flagship is not None:
-            SHIP_CHOICES.append(flagship)
-
-        self.fields["shiptype"] = forms.IntegerField(widget=forms.Select(choices=SHIP_CHOICES, attrs={'id':'shipmoveship'}), label="Ship Type")
-        self.fields["amount"] = forms.IntegerField(widget=forms.NumberInput(attrs={'size':'10','id':'shipmoveamount'}), label="Amount")
-        self.fields["regionfrom"] = forms.CharField(max_length=1, widget=forms.Select(choices=REGION_CHOICES), label="From")
-        self.fields["regionto"] = forms.CharField(max_length=1, widget=forms.Select(choices=REGION_CHOICES), label="To")
-
-
-class ShipMothballForm(forms.Form):
-
-    def __init__(self, millevel, *args, **kwargs):
-        super(ShipMothballForm, self).__init__(*args, **kwargs)
-
-        SHIP_CHOICES = utilities.formshiplist(millevel, list(shiplist))
-
-        self.fields["shiptype"] = forms.IntegerField(widget=forms.Select(choices=SHIP_CHOICES, attrs={'id':'mothballship'}), label="Ship Type")
-        self.fields["amount"] = forms.IntegerField(widget=forms.NumberInput(attrs={'size':'10','id':'mothballamount'}), label="Amount")
+        super(Blueprinttradeform, self).__init__(*args, **kwargs)
+        offerchoices = []
+        blueprints = world.blueprints.all()
+        len(blueprints)
+        amounts = []
+        for tier in v.shipindices[2:]:
+            query = blueprints.filter(model=tier)
+            if len(query) > 0:
+                for blueprint in query:
+                    if blueprint.amount not in amounts:
+                        amounts.append(blueprint.amount)
+                        offerchoices.append((blueprint.pk, blueprint.__str__()))
+        self.fields['offer'] = forms.ChoiceField(choices=offerchoices)
+        self.fields['offer_amount'] = forms.IntegerField(min_value=1, label="Amount", widget=forms.NumberInput(
+                attrs={'size':'10'}))
+        self.fields['amount'] = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
+        self.fields['amount'] = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
+        self.fields['amount'] = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
 
 
-class StagingForm(forms.Form):
 
-    def __init__(self, millevel, *args, **kwargs):
-        super(StagingForm, self).__init__(*args, **kwargs)
+class Shiptradeform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(Shiptradeform, self).__init__(*args, **kwargs)
+        fleets = fleet.objects.filter(Q(sector=world.sector)|Q(sector='hangar'), world=world, controller=world)
+        choices = []
+        for tier in v.shipindices:
+            for f in fleets:
+                if f.__dict__[tier] > 0:
+                    choices.append((tier, tier.replace('_', ' ').capitalize()))
+                    break
+        exclusionlist = []
+        for f in fleets:
+            if f.power() == 0:
+                exclusionlist.append(f.pk)
+        for f in exclusionlist:
+            fleets = fleets.exclude(pk=f)
+        choices = tuple(choices)
+        self.fields['offer'] = forms.ChoiceField(choices=choices, label="Ship type")
+        self.fields['fleet'] = forms.ModelChoiceField(queryset=fleets, label="From")
+        self.fields['offer_amount'] = forms.IntegerField(min_value=1, label="Amount", widget=forms.NumberInput(
+                attrs={'size':'10'}))
+        self.fields['request'] = forms.ChoiceField(choices=RESOURCE_CHOICES)
+        self.fields['request_amount'] = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
+        self.fields['amount'] = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
+    #request = forms.ChoiceField(choices=RESOURCE_CHOICES)
+    #request_amount = forms.IntegerField(min_value=1)
+    #amount = forms.IntegerField(min_value=1)
 
-        SHIP_CHOICES = utilities.formshiplist(millevel, list(shiplist), True)
 
-        self.fields["shiptype"] = forms.IntegerField(widget=forms.Select(choices=SHIP_CHOICES, attrs={'id':'mothballship'}), label="Ship Type")
-        self.fields["amount"] = forms.IntegerField(widget=forms.NumberInput(attrs={'size':'10','id':'mothballamount'}), label="Amount")
 
+class Resourcetradeform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(Resourcetradeform, self).__init__(*args, **kwargs)
+        offerchoices = []
+        for item in RESOURCE_CHOICES:
+            if world.__dict__[item[0]] > 0:
+                offerchoices.append(item)
+        self.fields['offer'] = forms.ChoiceField(choices=offerchoices)
+        self.fields['offer_amount'] = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
+    request = forms.ChoiceField(choices=RESOURCE_CHOICES)
+    request_amount = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
+    amount = forms.IntegerField(min_value=1, widget=forms.NumberInput(
+                attrs={'size':'10'}))
+
+
+
+class Accepttradeform(forms.Form):
+    def __init__(self, trade, *args, **kwargs):
+        super(Accepttradeform, self).__init__(*args, **kwargs)
+        self.fields['amount'] = forms.IntegerField(min_value=1, max_value=trade.amount, widget=forms.NumberInput(
+                attrs={'size':'2'}))
 
 class FlagForm(forms.Form):
 
@@ -172,6 +178,7 @@ class FlagForm(forms.Form):
         ('fl14','Battlestar Galactica'),
         ('fl26','XCOM Motto'),
         ('fl09','FO BoS'),
+        ('fl59','GHEM'),
         ('fl30','FO Enclave'),
         ('fl10','Spore'),
         ('fl11','Futurama'),
@@ -227,6 +234,7 @@ class AvatarForm(forms.Form):
         ('av59','Lance Bishop'),
         ('av31','Cmdr. Shepard'),
         ('av27','FemShep'),
+        ('av99','GHEM'),
         ('av61','Garrus Vakarian'),
         ('av62','Legion'),
         ('av65','Mordin Solus'),
@@ -265,60 +273,94 @@ class AvatarForm(forms.Form):
     avatar = forms.CharField(max_length=4, widget=forms.Select(choices=AVATAR_CHOICES, attrs={'id':'avatarchoice'}))
 
 
-class DirectAidForm(forms.Form):
+class Aidform(forms.Form):
 
-    def __init__(self, ownmillevel, othermillevel, *args, **kwargs):
-        super(DirectAidForm, self).__init__(*args, **kwargs)
+    def __init__(self, world, *args, **kwargs):
+        super(Aidform, self).__init__(*args, **kwargs)
+        reslist = (
+            ('budget', 'GEU'), 
+            ('warpfuel', 'Warpfuel'),
+            ('duranium', 'Duranium'), 
+            ('tritanium', 'Tritanium'), 
+            ('adamantium', 'Adamantium')
+        )
+        choicelist = []
+        for field in reslist:
+            if world.__dict__[field[0]] > 0: #if resource count > 0
+                choicelist.append(field) #this gives is hella dynamic forms
 
-        reslist = [('0','GEU'),
-                   ('1','Warpfuel'),
-                   ('2','Duranium'),
-                   ('3','Tritanium'),
-                   ('4','Adamantium'),
-                   ('11','Fighters'),
-                   ('12','Corvettes'),
-                   ('13','Light Cruisers'),
-                   ('14','Destroyers'),
-                   ('15','Frigates'),
-                   ('16','Heavy Cruisers'),
-                   ('17','Battlecruisers'),
-                   ('18','Battleships'),
-                   ('19','Dreadnoughts'),]
+        
+        #django loves tuples, so
+        for resource in choicelist:
+            max_number = world.__dict__[resource[0]]
+            self.fields[resource[0]] = forms.IntegerField(widget=forms.NumberInput(
+                attrs={'size':'10'}), label="%s: " % resource[1], min_value=0, max_value=max_number)
 
-        corlevel, lcrlevel, deslevel, frilevel, hcrlevel, bcrlevel, bshlevel, drelevel = utilities.levellist()
+class Shipaidform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(Shipaidform, self).__init__(*args, **kwargs)
+        fleets = fleet.objects.filter((Q(sector=world.sector)|Q(sector='hangar')), world=world, controller=world)
+        techlist = (
+            ('freighters', 'Freighters'),
+            ('fighters', 'Fighters'),
+            ('corvettes', 'Corvettes'),
+            ('light_cruisers', 'Light Cruisers'),
+            ('destroyers', 'Destroyers'),
+            ('frigates', 'Frigates'), 
+            ('heavy_cruisers', 'Heavy Cruisers'), 
+            ('battlecruisers', 'Battlecruisers'), 
+            ('battleships', 'Battleships'),
+            ('dreadnoughts', 'Dreadnoughts')
+        )
+        choicelist = []
+        comparisonfleet = fleet()
+        for ball in fleets:
+            comparisonfleet.merge(ball)
+        for field in techlist:
+            if comparisonfleet.__dict__[field[0]] > 0:
+                choicelist.append(field)
+        choicelist = tuple(choicelist)
+        self.fields["ship_choice"] = forms.ChoiceField(choices=choicelist)
+        self.fields["fleet_choice"] = forms.ModelChoiceField(queryset=fleets)
+    amount = forms.IntegerField(min_value=1)
 
-        if ownmillevel < corlevel or othermillevel < corlevel:
-            RESOURCE_CHOICES = reslist[:7]
-        elif ownmillevel < lcrlevel or othermillevel < lcrlevel:
-            RESOURCE_CHOICES = reslist[:8]
-        elif ownmillevel < deslevel or othermillevel < deslevel:
-            RESOURCE_CHOICES = reslist[:9]
-        elif ownmillevel < frilevel or othermillevel < frilevel:
-            RESOURCE_CHOICES = reslist[:10]
-        elif ownmillevel < hcrlevel or othermillevel < hcrlevel:
-            RESOURCE_CHOICES = reslist[:11]
-        elif ownmillevel < bcrlevel or othermillevel < bcrlevel:
-            RESOURCE_CHOICES = reslist[:12]
-        elif ownmillevel < bshlevel or othermillevel < bshlevel:
-            RESOURCE_CHOICES = reslist[:13]
-        else:
-            RESOURCE_CHOICES = reslist
+class aidfleetform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(aidfleetform, self).__init__(*args, **kwargs)
+        query = world.controlled_fleets.all().exclude(sector='warping').exclude(sector='hangar')
+        self.fields['fleetchoice'] = forms.ModelChoiceField(queryset=query)
+        self.fields['retain_control'] = forms.BooleanField(label="Retain ownership")
 
-        self.fields["send"] = forms.IntegerField(widget=forms.Select(choices=RESOURCE_CHOICES, attrs={'id':'offerres'}))
-        self.fields["amountsend"] = forms.IntegerField(widget=forms.NumberInput(attrs={'size':'10', 'id':'offeramount'}), label="Amount")
+class mineshutdownform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(mineshutdownform, self).__init__(*args, **kwargs)
+        choices = []
+        for prodtype in v.productionindices:
+            if world.__dict__[prodtype] >= v.production[prodtype]['production']:
+                choices.append((prodtype, prodtype[:-4].capitalize()))
+        self.fields['mine'] = forms.ChoiceField(choices=choices)
 
+class reopenmineform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(reopenmineform, self).__init__(*args, **kwargs)
+        choices = []
+        for prodtype in v.productionindices:
+            prod = 'inactive_%s' % prodtype
+            if world.__dict__[prod] > 0:
+                choices.append((prodtype, prodtype[:-4].capitalize()))
+        self.fields['mine'] = forms.ChoiceField(choices=choices)
 
 class GalaxySortForm(forms.Form):
 
     SORT_CHOICES = (
-        ('worldid','ID, ascending'),
-        ('-worldid','ID, descending'),
+        ('pk','ID, ascending'),
+        ('-pk','ID, descending'),
         ('gdp','GDP, ascending'),
         ('-gdp','GDP, descending'),
-        ('world_name','World name, ascending'),
-        ('-world_name','World name, descending'),
-        ('user_name','Username, ascending'),
-        ('-user_name','Username, descending'),
+        ('name','World name, ascending'),
+        ('-name','World name, descending'),
+        ('user__username','Username, ascending'),
+        ('-user__username','Username, descending'),
         ('warpoints','War points, ascending'),
         ('-warpoints','War points, descending'),
     )
@@ -331,11 +373,11 @@ class ResearchForm(forms.Form):
     researchamount = forms.IntegerField(label="GEU Amount")
 
 
-class RegistrationUniqueEmailCounters(regform):
+#class RegistrationUniqueEmailCounters(regform):
 
-    username = forms.RegexField(regex=r'^[\w.@+-]+$', max_length=30, label=_("Username"),
-        error_messages={'invalid': _("This value may contain only letters, numbers and @/./+/-/_ characters.")},
-        widget=forms.TextInput(attrs={'class': 'countable', 'maxlength': '30',}))
+ #   username = forms.RegexField(regex=r'^[\w.@+-]+$', max_length=30, label=_("Username"),
+ #       error_messages={'invalid': _("This value may contain only letters, numbers and @/./+/-/_ characters.")},
+  #      widget=forms.TextInput(attrs={'class': 'countable', 'maxlength': '30',}))
 
 
 class CommDisplayForm(forms.Form):
@@ -374,7 +416,7 @@ class DeleteByTargetForm(forms.Form):
         super(DeleteByTargetForm, self).__init__(*args, **kwargs)
 
         if logtype == 'war':
-            listlogs = WarLog.objects.filter(owner=world)
+            listlogs = Warlog.objects.filter(owner=world)
 
             listtargets = []
             for log in listlogs:
@@ -405,7 +447,7 @@ class DeleteByTargetForm(forms.Form):
                 if log.target not in listtargets:
                     listtargets.append(log.target)
 
-        TARGET_CHOICES = [(target.worldid, target.world_name) for target in listtargets]
+        TARGET_CHOICES = [(target.pk, target.name) for target in listtargets]
 
         self.fields["target"] = forms.IntegerField(widget=forms.Select(choices=TARGET_CHOICES), label="Select World")
 
@@ -443,7 +485,9 @@ class ShipChoiceForm(forms.Form):
 
 
 class PersonalShipForm(forms.Form):
-
+    def __init__(self, fleets, *args, **kwargs):
+        super(PersonalShipForm, self).__init__(*args, **kwargs)
+        self.fields['fleetchoice'] = forms.ModelChoiceField(queryset=fleets)
     SHIP_CHOICES = (
         ('1','Personal Fighter'),
         ('2','Militarised Yacht'),
@@ -498,34 +542,145 @@ class PersonalShipPicForm(forms.Form):
             label="Ship Picture")
 
 
-class GDPSaleForm(forms.Form):
+class Shipexchangeform(forms.Form):
+    def __init__(self, fleet1, fleet2, *args, **kwargs):
+        super(Shipexchangeform, self).__init__(*args, **kwargs)
+        self.highest = None
+        self.fleet1 = fleet1.pk
+        self.fleet2 = fleet2.pk
+        for ship in v.shipindices:
+            if fleet1.__dict__[ship] > 0 or fleet2.__dict__[ship] > 0:
+                self.highest = ship
+        for ship in v.shipindices[:v.shipindices.index(self.highest)+1]: #only ships in fleet
+            maxships = fleet1.__dict__[ship] + fleet2.__dict__[ship]
+            self.fields['%s %s' % (fleet1.pk, ship)] = forms.IntegerField(min_value=0, 
+                max_value=maxships, widget=forms.NumberInput(attrs={'size':'4'}))
+            self.fields['%s %s' % (fleet2.pk, ship)] = forms.IntegerField(min_value=0, 
+                max_value=maxships, widget=forms.NumberInput(attrs={'size':'4'}))
 
-    buyer = forms.CharField(label="Buyer's World ID", max_length=10)
-    geuamount = forms.IntegerField(label="GEU Amount")
-    gdpamount = forms.IntegerField(label="GDP Amount")
-
-    def clean_buyer(self):
-        """Validates Buyer World ID"""
-        data = self.cleaned_data['buyer']
-        try:
-            World.objects.get(worldid=data)
-        except World.DoesNotExist:
-            raise forms.ValidationError("Invalid World ID!")
-        return data
-
-    def clean_geuamount(self):
-        """Validates GEU Amount Number"""
-        data = self.cleaned_data['geuamount']
-        if data < 0:
-            raise forms.ValidationError("You cannot ask for a negative value!")
-        return data
-
-    def clean_gdpamount(self):
-        """Validates GDP in Seller's world as well as value of form"""
-        data = self.cleaned_data['gdpamount']
-        if data < 0:
-            raise forms.ValidationError("You cannot offer a negative value!")
-        return data
+    def clean(self):
+        super(Shipexchangeform, self).clean()
+        data = self.cleaned_data
+        flag = True
+        for ship in v.shipindices[:v.shipindices.index(self.highest)+1]:
+            key1 = '%s %s' % (self.fleet1, ship)
+            key2 = '%s %s' % (self.fleet2, ship)
+            print key1, key2
+            total = data[key1] + data[key2]
+            if total > self['%s %s' % (self.fleet1, ship)].field.max_value:
+                self.add_error('%s %s' % (self.fleet1, ship), "Too many %s" % ship.replace('_', ' '))
+            elif total < self['%s %s' % (self.fleet1, ship)].field.max_value:  
+                self.add_error('%s %s' % (self.fleet1, ship), "Too few %s" % ship.replace('_', ' '))
 
 
+#dynamic ship building form
+class shipbuildform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(shipbuildform, self).__init__(*args, **kwargs)
+        techlist = ['Freighter']
+        shiplist = techlist + v.tiers[:v.tiers.index(world.techlevel)+1]
+        #slicing up the tech list allows for a dynamic amount of fields
+        for ship in shiplist:
+            self.fields['%s' % ship.replace(' ', '_').lower() + 's'] = forms.IntegerField(min_value=1, initial=0, required=False)
+            #easier than a long if else if chain
+    
+
+class trainfleetform(forms.Form):
+    def __init__(self, pk, *args, **kwargs):
+        super(trainfleetform, self).__init__(*args, **kwargs)
+        query = fleet.objects.filter(world=pk).exclude(sector='hangar')
+        query = query.exclude(sector='warping')
+        self.fields['fleet'] = forms.ModelChoiceField(queryset=query, 
+            label="Fleet to train", widget=forms.Select(attrs={'id': 'trainchoice', 'onchange': 'trainfleetcost()'}))
+
+
+class fleetwarpform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(fleetwarpform, self).__init__(*args, **kwargs)
+        query = fleet.objects.filter(controller=world).exclude(sector="hangar").exclude(sector="warping")
+        choices = []
+        for sfleet in query:
+            choices.append((sfleet.pk, sfleet.name + " - " + sfleet.sector))
+        choices = tuple(choices)
+        self.fields['fleet'] = forms.ChoiceField(choices=choices, label="Select fleet to warp")
+    destination = forms.ChoiceField(choices=REGION_CHOICES)
+
+class attackform(forms.Form):
+    def __init__(self, world, sector, *args, **kwargs):
+        super(attackform, self).__init__(*args, **kwargs)
+        query = world.controlled_fleets.all().exclude(sector='hangar').exclude(sector='warping')
+        query = query.filter(sector=sector)
+        exclude_list = []
+        for f in query:
+            if f.power() == 0 or f.powermodifiers() == 0:
+                exclude_list.append(f.pk)
+        for pk in exclude_list:
+            query = query.exclude(pk=pk)
+
+        self.fields['fleets'] = forms.ModelMultipleChoiceField(queryset=query, widget=forms.SelectMultiple(
+            attrs={'style': 'color: black; background-color: white; min-width: 80px;'}))
+
+
+class buildlocationform(forms.Form):
+    def __init__(self, world, *args, **kwargs):
+        super(buildlocationform, self).__init__(*args, **kwargs)
+        query = fleet.objects.filter(
+            Q(sector=world.sector)|Q(sector='hangar'),
+            controller=world)
+        self.fields['buildchoice'] = forms.ModelChoiceField(queryset=query)
+        self.fields['recievechoice'] = forms.ModelChoiceField(queryset=query)
+
+class noinput(forms.Form):
+    number = forms.IntegerField(min_value=0)
+
+class fleetnamechangeform(forms.Form):
+    name = forms.CharField(max_length=25)
+
+class sectorchoice(forms.Form):
+    choice = forms.ChoiceField(choices=REGION_CHOICES)
+
+class mergeform(forms.Form):
+    def __init__(self, world, fleetobj, *args, **kwargs):
+        super(mergeform, self).__init__(*args, **kwargs)
+        if fleetobj.sector == 'hangar':
+            fleets = world.fleets.all().filter(sector=world.sector, controller=world)
+        elif fleetobj.sector == world.sector:
+            fleets = world.fleets.all().filter(Q(sector=world.sector)|Q(sector='hangar'), 
+                controller=world).exclude(pk=fleetobj.pk)
+        elif fleetobj.sector == 'warping':
+            fleets = world.fleets.all().exclude(pk__gte=0) #invalid so niggas who try get no results
+        else:
+            fleets = world.fleets.all().filter(sector=fleetobj.sector, controller=world).exclude(pk=fleetobj.pk)
+
+        self.fields['fleetchoice'] = forms.ModelChoiceField(queryset=fleets, widget=forms.Select(attrs={'style':'max-width: 105px'}))
+
+
+class lootpriorityform(forms.Form):
+    gdp = forms.IntegerField(min_value=0)
+    growth = forms.IntegerField(min_value=0)
+    warpfuel = forms.IntegerField(min_value=0)
+    duranium = forms.IntegerField(min_value=0)
+    tritanium = forms.IntegerField(min_value=0)
+    adamantium = forms.IntegerField(min_value=0)
+
+class passchange(forms.Form):
+    oldpass = forms.CharField(widget=forms.PasswordInput, max_length=40, label="Old password")
+    new1 = forms.CharField(widget=forms.PasswordInput, max_length=40, label="New password")
+    new2 = forms.CharField(widget=forms.PasswordInput, max_length=40, label="New password again")
+
+class donorurlform(forms.Form):
+    url = forms.CharField(max_length=30, required=False)
+
+class tradeamountform(forms.Form):
+    def __init__(self, trade, *args, **kwargs):
+        super(tradeamountform, self).__init__(*args, **kwargs)
+        if trade.offer_type == 'resource':
+            val = trade.owner.__dict__[trade.offer] / trade.offer_amount
+        elif trade.offer_type == 'ship':
+            val = trade.fleet_source.__dict__[trade.offer]
+        elif trade.offer_type == 'blueprint':
+            bp = Blueprint_license.objects.get(pk=trade.blueprint_pk)
+            val = trade.owner.blueprints.all().filter(model=bp.model, amount=bp.amount)
+        maxval = val / trade.offer_amount
+        self.fields['tradeno'] = forms.IntegerField(min_value=1, max_value=maxval)
 

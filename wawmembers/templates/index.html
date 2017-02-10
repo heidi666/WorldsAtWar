@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <style>
+    table {
+      border-spacing: 0px 5px;
+    }
+    td {
+      text-align: center;
+    }
+    a {
+      text-decoration:none;
+    }
+  </style>
+{% endblock %}
+{% load filters %}
+
+{% block title %}Worlds at War - Welcome{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <img src="{% static "wawmembers/splash2.png" %}" alt="Splash" height="305" width="845">
+  <br>
+  <span class='bigger'>Welcome to Worlds at War.</span>
+
+  <p>Many thanks to the following, who have decided to support me and Worlds at War:<p>
+
+  <table style="width:90%">
+    <tr>
+      {% for donator in donators %}
+        <td><i><b>{{ donator.world }}</b></i></td>
+        {% if forloop.counter|divisibleby:"4" %}</tr><tr>{% endif %}
+      {% endfor %}
+    </tr>
+  </table>
+
+</center>
+
+{% endblock %}

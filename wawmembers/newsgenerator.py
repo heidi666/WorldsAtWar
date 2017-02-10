@@ -5,6 +5,7 @@ from django.templatetags.static import static
 # WaW Imports
 import wawmembers.variables as v
 from wawmembers.utilities import plural as pl
+import wawmembers.utilities as utilities
 
 '''
 HTML generation for news items.
@@ -18,15 +19,15 @@ hl = '<p class="halfline">&nbsp;</p>'
 ##############
 
 def rumsoddium(world):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    linkworld = reverse('stats_ind', args=(world.pk,))
+    fullworld = '<a href="%s">%s</a>' % (linkworld, world.name)
 
     return "%s seized your prized rumsoddium after defeating you in your war!" % fullworld
 
 
 def rumsodmilitaryreceive(world):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    linkworld = reverse('stats_ind', args=(world.pk,))
+    fullworld = '<a href="%s">%s</a>' % (linkworld, world.name)
 
     return "Vicious storms by gigantic solar flares lashed your world, burning warehouses and electronics wherever they " + \
         "were, no matter how shielded. After the storms passed you ordered a thorough damage report, and were horrified to " + \
@@ -41,10 +42,10 @@ def rumsodmilitaryreceive(world):
 
 def allianceinvite(alliance, inviter):
     linkalliance = reverse('alliances_ind', args=(alliance.pk,))
-    linkinviter = reverse('stats_ind', args=(inviter.worldid,))
+    linkinviter = reverse('stats_ind', args=(inviter.pk,))
 
     fullalliance = '<a href="%s">%s</a>' % (linkalliance, alliance.alliance_name)
-    fullinviter = '<a href="%s">%s</a>' % (linkinviter, inviter.world_name)
+    fullinviter = '<a href="%s">%s</a>' % (linkinviter, inviter.name)
 
     status = ('leader' if inviter.leader else 'officer')
 
@@ -53,18 +54,18 @@ def allianceinvite(alliance, inviter):
 
 
 def withdrawalmade(officer, amount):
-    linkofficer = reverse('stats_ind', args=(officer.worldid,))
+    linkofficer = reverse('stats_ind', args=(officer.pk,))
 
-    fullofficer = '<a href="%s">%s</a>' % (linkofficer, officer.world_name)
+    fullofficer = '<a href="%s">%s</a>' % (linkofficer, officer.name)
 
     return "%(amount)s GEUs have been withdrawn from your federation bank by your officer %(officer)s." \
         % {'amount':amount, 'officer':fullofficer}
 
 
 def depositmade(member, amount):
-    linkmember = reverse('stats_ind', args=(member.worldid,))
+    linkmember = reverse('stats_ind', args=(member.pk,))
 
-    fullmember = '<a href="%s">%s</a>' % (linkmember, member.world_name)
+    fullmember = '<a href="%s">%s</a>' % (linkmember, member.name)
 
     return "%(amount)s GEUs have been deposited to your federation bank by your member %(member)s." \
         % {'amount':amount, 'member':fullmember}
@@ -86,17 +87,17 @@ def purge(alliance):
 
 
 def resignation(officer):
-    linkofficer = reverse('stats_ind', args=(officer.worldid,))
+    linkofficer = reverse('stats_ind', args=(officer.pk,))
 
-    fullofficer = '<a href="%s">%s</a>' % (linkofficer, officer.world_name)
+    fullofficer = '<a href="%s">%s</a>' % (linkofficer, officer.name)
 
     return "Your officer %s has resigned in your alliance!" % fullofficer
 
 
 def successor(leader):
-    linkleader = reverse('stats_ind', args=(leader.worldid,))
+    linkleader = reverse('stats_ind', args=(leader.pk,))
 
-    fullleader = '<a href="%s">%s</a>' % (linkleader, leader.world_name)
+    fullleader = '<a href="%s">%s</a>' % (linkleader, leader.name)
 
     return "%s, the leader of your alliance, has resigned and given you command!" % fullleader
 
@@ -106,63 +107,35 @@ def successor(leader):
 #######
 
 def wardec(world,reason):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
-
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
     return "%s has declared war on you! They gave the following reason: <i>%s</i>." % (fullworld,reason)
 
-
-def fleetnames(region, world, target):
-    if region == 'A':
-        worldfleet = world.fleetname_inA
-        targetfleet = target.fleetname_inA
-    elif region == 'B':
-        worldfleet = world.fleetname_inB
-        targetfleet = target.fleetname_inB
-    elif region == 'C':
-        worldfleet = world.fleetname_inC
-        targetfleet = target.fleetname_inC
-    elif region == 'D':
-        worldfleet = world.fleetname_inD
-        targetfleet = target.fleetname_inD
-    return worldfleet, targetfleet
-
-
+#format a fleet of losses into a string for easy display
 def losses(shiplist):
-    sh1, sh2, sh3, sh4, sh5, sh6, sh7, sh8, sh9 = shiplist
-    fighters = ' %s %s,' % (sh1, pl('fighter', sh1))
-    corvettes = ' %s %s,' % (sh2, pl('corvette', sh2))
-    lcruisers = ' %s %s,' % (sh3, pl('light cruiser', sh3))
-    destroyers = ' %s %s,' % (sh4, pl('destroyer', sh4))
-    frigates = ' %s %s,' % (sh5, pl('frigate', sh5))
-    hcruisers = ' %s %s,' % (sh6, pl('heavy cruiser', sh6))
-    bcruisers = ' %s %s,' % (sh7, pl('battlecruiser', sh7))
-    battleships = ' %s %s,' % (sh8, pl('battleship', sh8))
-    dreadnoughts = ' %s %s,' % (sh9, pl('dreadnought', sh9))
-
-    if sh9 == 0:
-        loss = fighters + corvettes + lcruisers + destroyers + frigates + hcruisers + bcruisers + ' and' + battleships[:-1]
-        if sh8 == 0:
-            loss = fighters + corvettes + lcruisers + destroyers + frigates + hcruisers + ' and' + bcruisers[:-1]
-            if sh7 == 0:
-                loss = fighters + corvettes + lcruisers + destroyers + frigates + ' and' + hcruisers[:-1]
-                if sh6 == 0:
-                    loss = fighters + corvettes + lcruisers + destroyers + ' and' + frigates[:-1]
-                    if sh5 == 0:
-                        loss = fighters + corvettes + lcruisers + ' and' + destroyers[:-1]
-                        if sh4 == 0:
-                            loss = fighters + corvettes + ' and' + lcruisers[:-1]
-                            if sh3 == 0:
-                                loss = fighters + ' and' + corvettes[:-1]
-                                if sh2 == 0:
-                                    loss = fighters[:-1]
-                                    if sh1 == 0:
-                                        loss = ' no ships at all'
-    else:
-        loss = fighters + corvettes + lcruisers + destroyers + frigates + hcruisers + bcruisers + battleships + \
-            ' and' + dreadnoughts[:-1]
-
+    lostships = []
+    for ship in list(shiplist._meta.fields)[v.fleetindex:]:
+        if shiplist.__dict__[ship.name] > 0:
+            lostships.append([ship.name, shiplist.__dict__[ship.name]])
+    if len(lostships) == 0:
+        return ' no ships at all'
+    return utilities.resource_text(lostships)
+    for entry in lostships:
+        if shiplist.__dict__[entry] > 1: #we plural by default
+            prettylost.append(entry.replace('_', ' '))
+        else:
+            prettylost.append(entry.replace('_', ' ')[:-1]) #strip off the 's' if == 1
+    if len(lostships) == 1:
+        return '%s %s' % (shiplist.__dict__[lostships[0]], prettylost[0])
+    change = lostships[len(lostships) - 2]
+    stop = lostships[len(lostships) - 1]
+    for ship, text in zip(lostships, prettylost):
+        if ship == change:
+            lossadd = "%s %s and " % (shiplist.__dict__[ship], text)
+        elif ship == stop:
+            lossadd = "%s %s." % (shiplist.__dict__[ship], text)
+        else:
+            lossadd = "%s %s, " % (shiplist.__dict__[ship], text)
+        loss += lossadd
     return loss
 
 
@@ -171,15 +144,16 @@ def tablelosses(targetlosses, worldlosses):
     table = '<table width="60%" class="striped supplydisplay"><tr class="verydark"><b><td class="hidden nohl"></td>\
         <td class="green center">We destroyed</td><td class="red center">We lost</td></b></tr>'
 
-    for i in range(9):
-        if not targetlosses[-1-i] == worldlosses[-1-i] == 0:
-            index = 9-i
-            break
-
-    for i in range(index):
+    thighest = utilities.highesttier(targetlosses)
+    if v.shipindices.index(thighest) > v.shipindices.index(utilities.highesttier(worldlosses)):
+        highest = thighest
+    else:
+        highest = utilities.highesttier(worldlosses)
+    i = 1
+    for ship in v.shipindices[1:v.shipindices.index(highest)+1]:
         table += '<tr class="%s"><td class="leftpad">%s</td><td class="center">%s</td><td class="center">%s</td></tr>' \
-          % (('light' if not i % 2 else 'dark'), v.shipindices[i], targetlosses[i], worldlosses[i])
-
+          % (('light' if not i % 2 else 'dark'), ship.capitalize().replace('_', ' '), targetlosses.__dict__[ship], worldlosses.__dict__[ship])
+        i += 1
     table += '</table>'
     return table
 
@@ -224,32 +198,26 @@ def flagshipoutcome(flagmeet, flagworldlose, flagtargetlose):
     return worldreport, targetreport
 
 
-def battleresult(region, world, target, deflosses, attlosses, flost, flagworld, flagtarget, flagmeet, flagworldlose, flagtargetlose):
+def battleresult(sector, world, target, worldloss, targetloss, fleets, defensefleets, flag):
+    #passes the flagship name if the flagship is in play in any of the involved fleets
+    worldfleetstring = fleetnames(fleets, (flag['worldname'] if flag['world'] else False)) 
+    targetfleetstring = fleetnames(defensefleets, (flag['targetname'] if flag['target'] else False))
+    worldreport, targetreport = flagshipoutcome(flag['meet'], flag['worldloss'], flag['targetloss'])
+    targetlink = '<a href="%s">%s</a>' % (target.get_absolute_url(), target.name)
+    worldlink = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    wfplural = ('s' if len(fleets) > 1 else '')
+    tfplural = ('s' if len(defensefleets) > 1 else '')
+    table = tablelosses(targetloss, worldloss)
 
-    worldfleet, targetfleet = fleetnames(region, world, target)
-    worldflag = (', headed by the flagship <i>%s</i>,<br>' % world.flagshipname if flagworld else '')
-    targetflag = (', headed by the flagship <i>%s</i>,' % target.flagshipname if flagtarget else '')
-    worldreport, targetreport = flagshipoutcome(flagmeet, flagworldlose, flagtargetlose)
-
-    table = tablelosses(deflosses, attlosses)
-    freighter = ('' if flost == 0 else '%s You also managed to destroy %s %s in the heat of battle.' % (hl, flost, pl('freighter', flost)))
-
-    dataatt = "<b>Your fleet <i>%(worldfleet)s</i>%(worldflag)s engaged fleet <i>%(targetfleet)s</i>%(targetflag)s of world %(targetname)s! \
-        %(hl)s Battle Report: %(hl)s </b> %(table)s %(flagreport)s %(freighter)s" \
-          % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.world_name, 'table':table, 'freighter':freighter, 'hl':hl,
-          'worldflag':worldflag, 'targetflag':targetflag, 'flagreport':worldreport}
-
-    defenselosses = losses(deflosses)
-    enemylosses = losses(attlosses)
-    linkenemy = reverse('stats_ind', args=(world.worldid,))
-    fullenemy = '<a href="%s">%s</a>' % (linkenemy, world.world_name)
-    pluralise = ('was' if flost == 1 else 'were')
-    freighterdef = ('' if flost == 0 else '%s %s of your freighters %s also destroyed in the heat of battle.' % (hl, flost, pluralise))
-
+    dataatt = "<b>Our %s engaged %s of world %s in %s! \
+        %s Battle Report: %s </b> %s %s" \
+          % (worldfleetstring, targetfleetstring, targetlink, sector, hl, hl, table, worldreport)
+    wlosses = losses(worldloss)
+    defenselosses = losses(targetloss)
     conj = 'and <span class="green">destroyed</span>'
-    if enemylosses == ' no ships at all' and defenselosses == ' no ships at all':
+    if wlosses == ' no ships at all' and defenselosses == ' no ships at all':
         mod = desc = ''
-    elif enemylosses == ' no ships at all':
+    elif wlosses == ' no ships at all':
         mod = ''
         desc = 'crushingly '
     elif defenselosses == ' no ships at all':
@@ -259,84 +227,153 @@ def battleresult(region, world, target, deflosses, attlosses, flost, flagworld, 
         mod = desc = ''
         conj = 'but we managed to <span class="green">destroy</span>'
 
-    datadef = "Your %(mod)s fleet <i>%(targetfleet)s</i>%(targetflag)s was %(desc)sattacked by fleet <i>%(worldfleet)s</i>%(worldflag)s \
-        of world %(enemy)s! %(hl)s We <span class=\"red\">lost</span> %(defenselosses)s in the resulting conflict, %(conj)s %(enemylosses)s \
-        in retaliation! %(flagreport)s %(freighter)s" \
-          % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.world_name, 'hl':hl, 'mod':mod, 'desc':desc, \
-          'enemy':fullenemy, 'defenselosses':defenselosses, 'enemylosses':enemylosses, 'conj':conj, 'freighter':freighterdef, \
-          'worldflag':worldflag, 'targetflag':targetflag, 'flagreport':targetreport}
+    datadef = "Your %s fleet%s <i>%s</i> was %sattacked by fleet%s <i>%s</i> \
+        of world %s in %s! %s We <span class=\"red\">lost</span> %s in the resulting conflict, %s %s \
+        in retaliation! %s" \
+          % (mod, tfplural, targetfleetstring, desc, wfplural, worldfleetstring, worldlink, sector, hl, \
+            defenselosses, conj, wlosses, targetreport)
 
     return dataatt, datadef
 
+def fleetnames(fleets, flaginfo):
+    flen = len(fleets)
+    fleetstring = ('fleets ' if flen > 1 else 'fleet ')
+    if flen == 0:
+        fleetstring = ''
+    for index, ships in enumerate(fleets, 1):
+        if index == flen - 1:
+            fleetstring += ships.name + ' and '
+        elif index == flen:
+            fleetstring += ships.name
+        else:
+            fleetstring += ships.name + ', '
+    if flaginfo:
+        fleetstring += " headed by the flagship %s" % flaginfo
+    return fleetstring
 
-def finalbattleresult(region, world, target, deflosses, attlosses, gdp, growth, budget, fuel, dur, trit, adam, hanglosses, flost, freighters,
-  flagworld, flagtarget, flagmeet, flagworldlose, flagtargetlose):
+def OOSfinalbattleresult(sector, world, target, worldlosses, targetlosses, freighters, worldfleets, targetfleets, 
+    flag):
+    #setting up strings and pluraliwahtever
+    worldfleetstr = fleetnames(worldfleets, (flag['worldname'] if flag['world'] else False))
+    wfstr = ('s' if len(worldfleets) > 1 else '')
+    targetfleetstr = fleetnames(targetfleets, (flag['targetname'] if flag['target'] else False))
+    tfstr = ('s' if len(targetfleets) > 1 else '')
+    #stuff
+    targetlink = '<a href="%s">%s</a>' % (target.get_absolute_url(), target.name)
+    worldlink = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    worldreport, targetreport = flagshipoutcome(flag['meet'], flag['worldloss'], True)
+    #more fucking stuff
+    dataatt = "Our %(atkfleets)s engaged %(target)s \
+    %(deffleets)s in sector %(sector)s resulting in the enemy fleets \
+    total obliteration!" % {'atkfleets': worldfleetstr,
+    'deffleets': targetfleetstr, 'target': targetlink, 'sector': sector}
 
-    worldfleet, targetfleet = fleetnames(region, world, target)
-    worldflag = (', headed by the flagship <i>%s</i>,<br>' % world.flagshipname if flagworld else '')
-    targetflag = (', headed by the flagship <i>%s</i>,' % target.flagshipname if flagtarget else '')
-    worldreport, targetreport = flagshipoutcome(flagmeet, flagworldlose, flagtargetlose)
-    hangarlosses = losses(hanglosses)
-    loot = spoils(growth, budget, fuel, dur, trit, adam, freighters)
+    #losses
+    dataatt += " We <span class=\"red\">lost</span> "
+    dataatt += losses(worldlosses) + " in the heat of battle."
+    if freighters > 0:
+        dataatt += " After the battle we seized %s freighters from %s that remained after the battle and \
+        distributed them among our fleets" % (freighters, targetlink)
 
-    table = tablelosses(deflosses, attlosses)
-    toaddhangar = ('' if hangarlosses == ' no ships at all' else ' %s from their orbital hangars,' % hangarlosses)
-    freighter = ('' if flost == 0 else '%s You also managed to destroy %s %s in the heat of battle.' % (hl, flost, pl('freighter', flost)))
+    datadef = "Our %(deffleets)s in %(sector)s was attacked by %(attacker)ss \
+        %(atkfleets)s and the resulting battle ended in\
+        total destruction of our fleet%(defplural)s :sadface:." % {'defplural': tfstr, 
+        'atkfleets': worldfleetstr, 'deffleets': targetfleetstr, 'attacker': worldlink, 
+        'sector': sector}
+    datadef += ' But we managed to <span class="green">destroy</span> %s' % losses(worldlosses)
 
-    dataatt = "Your fleet <i>%(worldfleet)s</i>%(worldflag)s engaged fleet <i>%(targetfleet)s</i>%(targetflag)s of world %(targetname)s! %(hl)s \
-        Battle Report: %(hl)s </b> %(table)s %(flagreport)s %(freighter)s %(hl)s After the battle, their puny fleet cowers before yours and you \
-        exact %(gdp)s million GEUs worth of GDP,%(hangar)s%(loot)s in reparations lest you utterly destroy their world." \
-          % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.world_name, 'table':table, 'gdp':gdp, 'loot':loot,
-          'hangar':toaddhangar, 'freighter':freighter, 'hl':hl, 'worldflag':worldflag, 'targetflag':targetflag, 'flagreport':worldreport}
+    return dataatt, datadef
 
-    defenselosses = losses(deflosses)
-    enemylosses = losses(attlosses)
-    toaddhangar = ('' if hangarlosses == ' no ships at all' else ' %s from our orbital hangars,' % hangarlosses)
-    pluralise = ('was' if flost == 1 else 'were')
-    freighter = ('' if flost == 0 else '%s %s of your freighters %s also destroyed in the heat of battle.' % (hl, flost, pluralise))
-    linkenemy = reverse('stats_ind', args=(world.worldid,))
-    fullenemy = '<a href="%s">%s</a>' % (linkenemy, world.world_name)
+def finalbattleresult(sector, world, target, loot, hangar, worldlosses, targetlosses, worldfleets, 
+    targetfleets, flag):
+    worldfleetstr = fleetnames(worldfleets, (flag['worldname'] if flag['world'] else False))
+    wfstr = ('s' if len(worldfleets) > 1 else '')
+    targetfleetstr = fleetnames(targetfleets, (flag['targetname'] if flag['target'] else False))
+    tfstr = ('s' if len(targetfleets) > 1 else '')
+    #stuff
+    targetlink = '<a href="%s">%s</a>' % (target.get_absolute_url(), target.name)
+    worldlink = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    worldreport, targetreport = flagshipoutcome(flag['meet'], flag['worldloss'], True)
+    table = tablelosses(targetlosses, worldlosses)
+    loot = spoils(loot)
+    
+    dataatt = "Your %(worldfleet)s engaged %(targetfleet)s of world %(target)s! %(hl)s \
+        Battle Report: %(hl)s </b> %(table)s %(flagreport)s %(hl)s After the battle, their puny fleet%(tplural)s cowers before yours and you \
+        exact %(loot)s in reparations lest we utterly destroy their world." \
+          % {'worldfleet':worldfleetstr, 'targetfleet':targetfleetstr, 'target':targetlink, 'table':table, 'loot':loot,
+          'hl':hl, 'flagreport':worldreport, 'tplural': tfstr}
 
-    datadef = "Your fleet <i>%(targetfleet)s</i>%(targetflag)s was attacked by fleet <i>%(worldfleet)s</i>%(worldflag)s of world %(enemy)s! %(hl)s \
+    datadef = "Your %(targetfleet)s was attacked by %(worldfleet)s of world %(enemy)s! %(hl)s \
         We <span class=\"red\">lost</span> %(defenselosses)s in the resulting conflict and managed to <span class=\"green\">destroy</span> \
-        %(enemylosses)s in retaliation. %(flagreport)s %(freighter)s %(hl)s We had to give them %(gdp)s million GEUs worth of GDP,%(hangar)s%(loot)s \
+        %(enemylosses)s in retaliation. %(flagreport)s %(hl)s We had to give them %(loot)s \
         in reparations in order to stop them from utterly destroying us after the battle! %(hl)s The war ends in a loss for us." \
-          % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'enemy':fullenemy, 'defenselosses':defenselosses, 'enemylosses':enemylosses,
-          'gdp':gdp, 'loot':loot, 'hangar':toaddhangar, 'freighter':freighter, 'hl':hl, 'worldflag':worldflag, 'targetflag':targetflag,
-          'flagreport':targetreport}
+          % {'worldfleet':worldfleetstr, 'targetfleet':targetfleetstr, 'enemy':worldlink, 
+          'defenselosses':losses(targetlosses), 'enemylosses':losses(worldlosses), 'loot':loot, 
+          'hl':hl, 'flagreport':targetreport}
 
     return dataatt, datadef
 
 
-def warresult(region, world, target, gdp, growth, budget, fuel, dur, trit, adam, hanglosses, freighters, flagworld, flagtarget):
-
-    worldfleet, targetfleet = fleetnames(region, world, target)
-    loot = spoils(growth, budget, fuel, dur, trit, adam, freighters)
-    worldflag = (', headed by the flagship <i>%s</i>,<br>' % world.flagshipname if flagworld else '')
-    targetflag = (', headed by the flagship <i>%s</i>,' % target.flagshipname if flagtarget else '')
-    hangarlosses = losses(hanglosses)
-    loot = spoils(growth, budget, fuel, dur, trit, adam, freighters)
-
+def warresult(region, world, target, actions, hanglosses, freighters, worldfleets, targetfleets):
+    flagworld = checkflag(worldfleets)
+    flagtarget = checkflag(targetfleets)
+    worldfleetstr = fleetnames(worldfleets, (world.flagshipname if flagworld else False))
+    targetfleetstr = fleetnames(targetfleets, (target.flagshipname if flagtarget else False))
+    #stuff
+    targetlink = '<a href="%s">%s</a>' % (target.get_absolute_url(), target.name)
+    worldlink = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    hangarlosses = ' no ships at all'
     toaddhangar = ('' if hangarlosses == ' no ships at all' else ' %s from their orbital hangars,' % hangarlosses)
-
-    dataatt = "Upon seeing your mighty fleet <i>%(worldfleet)s</i>%(worldflag)s the fleet <i>%(targetfleet)s</i>%(targetflag)s of world \
-        %(targetname)s surrenders. %(hl)s You exact %(gdp)s million GEUs worth of GDP,%(hangar)s%(loot)s in reparations lest you utterly \
+    loot = spoils(actions)
+    dataatt = "Upon seeing your mighty %(atkfleets)s the %(deffleets)s of world %(enemy)s \
+        surrenders. %(hl)s You exact %(loot)s in reparations lest you utterly \
         destroy their world." \
-          % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.world_name, 'gdp':gdp, 'loot':loot, 'hangar':toaddhangar,
-          'hl':hl, 'worldflag':worldflag, 'targetflag':targetflag}
-
-    linkenemy = reverse('stats_ind', args=(world.worldid,))
-    fullenemy = '<a href="%s">%s</a>' % (linkenemy, world.world_name)
+          % {'atkfleets': worldfleetstr, 'deffleets': targetfleetstr, 'hl': hl, 'loot': loot, 'enemy': targetlink}
+ 
     toaddhangar = ('' if hangarlosses == ' no ships at all' else ' %s from our orbital hangars,' % hangarlosses)
 
-    datadef = "Your fleet <i>%(targetfleet)s</i>%(targetflag)s <span class=\"red\">surrenders</span> at the sight of the mighty fleet \
-        <i>%(worldfleet)s</i>%(worldflag)s of world %(enemy)s! %(hl)s We had to give them %(gdp)s million GEUs worth of GDP,%(hangar)s%(loot)s \
-        in reparations in order to stop them from utterly destroying us! %(hl)s The war ends in a humiliating loss for us." \
-          % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'enemy':fullenemy,'gdp':gdp, 'loot':loot, 'hangar':toaddhangar, 'hl':hl,
-          'worldflag':worldflag, 'targetflag':targetflag}
+    datadef = "Your %(deffleets)s <span class=\"red\">surrenders</span> \
+    at the sight of the mighty %(atkfleets)s of world %(enemy)s! %(hl)s\
+     We had to give them %(loot)s \
+    in reparations in order to stop them from utterly destroying us! %(hl)s The war ends in a humiliating loss for us." \
+    % {'enemy': worldlink, 'loot': loot, 'hl':hl,
+    'deffleets': targetfleetstr, 'atkfleets': worldfleetstr}
 
     return dataatt, datadef
 
+def checkflag(fleets):
+    for f in fleets:
+        if f.flagship:
+            return True
+    return False
+
+def spoils(spoilsdict):
+    loot = []
+    gdp = (spoilsdict['gdp']['amount'] if spoilsdict.has_key('gdp') else 0)
+    growth = (spoilsdict['growth']['amount'] if spoilsdict.has_key('growth') else 0)
+    budget = (spoilsdict['budget']['amount'] if spoilsdict.has_key('budget') else 0)
+    fuel = (spoilsdict['warpfuel']['amount'] if spoilsdict.has_key('warpfuel') else 0)
+    dur = (spoilsdict['duranium']['amount'] if spoilsdict.has_key('duranium') else 0)
+    trit = (spoilsdict['tritanium']['amount'] if spoilsdict.has_key('tritanium') else 0)
+    adam = (spoilsdict['adamantium']['amount'] if spoilsdict.has_key('adamantium') else 0)
+    fre = (spoilsdict['freighters']['amount'] if spoilsdict.has_key('freighters') else 0)
+    if gdp > 0:
+        loot.append([ 'million GEU\'s worth of GDP',  gdp])
+    if growth > 0:
+        loot.append([ 'million GEU\'s worth of growth',  growth])
+    if budget > 0:
+        loot.append([ '%s in cash' % pl('GEU', budget),  budget])
+    if fuel > 0:
+        loot.append([ 'of warpfuel',  fuel])
+    if dur > 0:
+        loot.append([ 'of duranium',  dur])
+    if trit > 0:
+        loot.append([ 'of tritanium',  trit])
+    if adam > 0:
+        loot.append([ 'of adamantium',  adam])
+    if fre > 0:
+        loot.append([ '%s' % pl('freighter', fre),  fre])
+    return utilities.resource_text(loot)
 
 def rebelresult(outcome, deflosses):
 
@@ -356,36 +393,6 @@ def rebelresult(outcome, deflosses):
     return data % {'rebel':rebellosses, 'conj':conj, 'hl':hl}
 
 
-def spoils(growth, budget, fuel, dur, trit, adam, fre):
-
-    growth = ('' if growth == 0 else ' %s million GEU\'s worth of growth,' % growth)
-    budget = ('' if budget == 0 else ' %s %s in cash,' % (budget, pl('GEU', budget)))
-    fuel = ('' if fuel == 0 else ' %s %s of warpfuel,' % (fuel, pl('canister', fuel)))
-    dur = ('' if dur == 0 else ' %s %s of duranium,' % (dur, pl('ton', dur)))
-    trit = ('' if trit == 0 else ' %s %s of tritanium,' % (trit, pl('ton', trit)))
-    adam = ('' if adam == 0 else ' %s %s of adamantium,' % (adam, pl('ton', adam)))
-    fre = ('' if fre == 0 else ' %s %s,' % (fre, pl('freighter', fre)))
-
-    if fre == '':
-        spoils = growth + budget + fuel + dur + trit + ' and' + adam[:-1]
-        if adam == '':
-            spoils = growth + budget + fuel + dur + ' and' + trit[:-1]
-            if trit == '':
-                spoils = growth + budget + fuel + ' and' + dur[:-1]
-                if dur == '':
-                    spoils = growth + budget + ' and' + fuel[:-1]
-                    if fuel == '':
-                        spoils = growth + ' and' + budget[:-1]
-                        if budget == '':
-                            spoils = growth[:-1]
-                            if growth == '':
-                                spoils = ""
-    else:
-        spoils = growth + budget + fuel + dur + trit + adam + ' and' + fre[:-1]
-
-    return spoils
-
-
 def raidresult(war, world, target, deflosses, attlosses, success, supersuccess, flost):
 
     worldfleet, targetfleet = fleetnames(war.region, world, target)
@@ -398,7 +405,7 @@ def raidresult(war, world, target, deflosses, attlosses, success, supersuccess, 
         else:
             data += "We quickly destroyed %(freighter)s freighters before their fleet was alerted, and hightailed it back to safety."
 
-        return data % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.world_name, 'freighter':flost}
+        return data % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.name, 'freighter':flost}
 
     else:
         targetlosses = losses(deflosses)
@@ -414,7 +421,7 @@ def raidresult(war, world, target, deflosses, attlosses, success, supersuccess, 
             data += "Unfortunately their patrols held strong, and we did not manage to strike their supply lines.<br>\
                 Our survivors limped back to the fleet."
 
-        return data % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.world_name, \
+        return data % {'worldfleet':worldfleet, 'targetfleet':targetfleet, 'targetname':target.name, \
             'targetlosses':targetlosses, 'worldlosses':worldlosses, 'freighter':flost}
 
 
@@ -430,7 +437,7 @@ def raidnotify(war, world, target, deflosses, attlosses, success, supersuccess, 
         else:
             data += "and destroyed %(freighter)s freighters before fleeing back to safety."
 
-        return data % {'ownfleet':ownfleet, 'enemyfleet':enemyfleet, 'enemy':world.world_name, 'freighter':flost}
+        return data % {'ownfleet':ownfleet, 'enemyfleet':enemyfleet, 'enemy':world.name, 'freighter':flost}
 
     else:
         defenselosses = losses(deflosses)
@@ -444,30 +451,24 @@ def raidnotify(war, world, target, deflosses, attlosses, success, supersuccess, 
         else:
             data += "We were steadfast in our defense and our attackers were forced to return fruitlessly back to their fleet."
 
-    return data % {'ownfleet':ownfleet, 'enemyfleet':enemyfleet, 'enemy':world.world_name, 'enemylosses':enemylosses,
+    return data % {'ownfleet':ownfleet, 'enemyfleet':enemyfleet, 'enemy':world.name, 'enemylosses':enemylosses,
         'defenselosses':defenselosses, 'freighter':flost}
 
 
 def peaceaccept(world):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
 
     return "%s has accepted your peace offer and you are now at peace." % fullworld
 
 
 def peacedecline(world):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
 
     return "%s has rejected your peace offer! The war rages on." % fullworld
 
 
 def peacerevoke(world):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
 
     return "%s has changed their mind, and revoked the peace offer they sent you!" % fullworld
 
@@ -490,9 +491,9 @@ def salvagetext(dur, trit, adam):
 
 def tradeaccept(world, send, sendamount, receive, receiveamount):
 
-    linkworld = reverse('stats_ind', args=(world.worldid,))
+    linkworld = reverse('stats_ind', args=(world.pk,))
 
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    fullworld = '<a href="%s">%s</a>' % (linkworld, world.name)
 
     return "%(fullworld)s has accepted your trade!<br>You send %(amountsend)s %(ressend)s, and their shipment of \
         %(amountrec)s %(sendrec)s is on the way." \
@@ -501,32 +502,44 @@ def tradeaccept(world, send, sendamount, receive, receiveamount):
 
 def tradeacceptmoney(world, send, sendamount, receive, receiveamount):
 
-    linkworld = reverse('stats_ind', args=(world.worldid,))
+    linkworld = reverse('stats_ind', args=(world.pk,))
 
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    fullworld = '<a href="%s">%s</a>' % (linkworld, world.name)
 
     return "%(fullworld)s has accepted your trade!<br>You send %(amountsend)s %(ressend)s, and receive %(amountrec)s %(sendrec)s." \
         % {'fullworld':fullworld,'amountsend':sendamount,'ressend':send,'amountrec':receiveamount,'sendrec':receive}
 
 
-def directaidcompletion(world, send, sendamount):
+def directaidcompletion(world, resources):
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    if len(resources) == 1:
+        resource_text = "%s %s" % (resources[0][1], resources[0][0])
+    else:
+        action = {}
+        for i, resource in enumerate(resources, 1):
+            resource_text += "%s %s" % (resource[1], resource[0])
+            if len(resources) - 1 == i:
+                resource_text += ' and '
+            else:
+                resource_text += ', '
+        resource_text = resource_text[:-2]
+    return "We received %s from %s!" % (resource_text, fullworld)
 
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
-
-    return "We received %(amountsend)s %(ressend)s from %(fullworld)s!" \
-        % {'fullworld':fullworld,'amountsend':sendamount,'ressend':send}
+def fleetaidcompletion(world, fleetname):
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    return "We recieved fleet %s from %s!" % (fleetname, fullworld)
 
 
-def tradecompletion(world, send, sendamount):
+def tradecompletion(world, resource, amount):
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    return "We received %(amount)s %(res)s from our trade with %(fullworld)s!" \
+        % {'fullworld':fullworld,'amount':amount,'res':resource}
 
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
-
-    return "We received %(amountsend)s %(ressend)s from our trade with %(fullworld)s!" \
-        % {'fullworld':fullworld,'amountsend':sendamount,'ressend':send}
+def tradecompletionships(world, ships):
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    count, ship = ships.split(' ')
+    return "We received %(amount)s %(res)s from our trade with %(fullworld)s!" \
+        % {'fullworld':fullworld,'amount':count,'res':ship}
 
 
 def tradefail(resource):
@@ -544,9 +557,9 @@ def tradefailfreighters(resource):
 #########
 
 def spycaughtinfiltration(spy, reveal):
-    linkowner = reverse('stats_ind', args=(spy.owner.worldid,))
+    linkowner = reverse('stats_ind', args=(spy.owner.pk,))
 
-    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.world_name)
+    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.name)
     data = "You caught a spy called \'%s\' " % spy.name
 
     if reveal:
@@ -558,9 +571,9 @@ def spycaughtinfiltration(spy, reveal):
 
 
 def spycaughtpropaganda(spy, reveal):
-    linkowner = reverse('stats_ind', args=(spy.owner.worldid,))
+    linkowner = reverse('stats_ind', args=(spy.owner.pk,))
 
-    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.world_name)
+    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.name)
     data = "You caught a spy called \'%s\' " % spy.name
 
     if reveal:
@@ -572,9 +585,9 @@ def spycaughtpropaganda(spy, reveal):
 
 
 def spycaughtgunrun(spy, reveal):
-    linkowner = reverse('stats_ind', args=(spy.owner.worldid,))
+    linkowner = reverse('stats_ind', args=(spy.owner.pk,))
 
-    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.world_name)
+    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.name)
     data = "You caught a spy called \'%s\' " % spy.name
 
     if reveal:
@@ -586,9 +599,9 @@ def spycaughtgunrun(spy, reveal):
 
 
 def spycaughtintel(spy, reveal):
-    linkowner = reverse('stats_ind', args=(spy.owner.worldid,))
+    linkowner = reverse('stats_ind', args=(spy.owner.pk,))
 
-    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.world_name)
+    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.name)
     data = "You caught a spy called \'%s\' " % spy.name
 
     if reveal:
@@ -600,9 +613,9 @@ def spycaughtintel(spy, reveal):
 
 
 def spycaughtsab(spy, reveal, installtype):
-    linkowner = reverse('stats_ind', args=(spy.owner.worldid,))
+    linkowner = reverse('stats_ind', args=(spy.owner.pk,))
 
-    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.world_name)
+    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.name)
     data = "You caught a spy called \'%s\' " % spy.name
 
     if installtype == 'yard':
@@ -625,9 +638,9 @@ def spycaughtsab(spy, reveal, installtype):
 
 
 def spycaughtsabhangars(spy, reveal):
-    linkowner = reverse('stats_ind', args=(spy.owner.worldid,))
+    linkowner = reverse('stats_ind', args=(spy.owner.pk,))
 
-    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.world_name)
+    fullowner = '<a href="%s">%s</a>' % (linkowner, spy.owner.name)
     data = "You caught a spy called \'%s\' " % spy.name
 
     if reveal:
@@ -639,9 +652,9 @@ def spycaughtsabhangars(spy, reveal):
 
 
 def counterintkilled(spy, world):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
+    linkworld = reverse('stats_ind', args=(world.pk,))
 
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    fullworld = '<a href="%s">%s</a>' % (linkworld, world.name)
 
     return "Your spy \'%s\' was caught in a counterintelligence sweep on the world of %s and killed!" % (spy.name, fullworld)
 
@@ -672,10 +685,10 @@ def notifysabhangars(deflosses):
 
 def notifyspyintercept(target, sender, resname, resamount):
 
-    linktarget = reverse('stats_ind', args=(target.worldid,))
-    fulltarget = '<a href="%s">%s</a>' % (linktarget, target.world_name)
-    linksender = reverse('stats_ind', args=(sender.worldid,))
-    fullsender = '<a href="%s">%s</a>' % (linksender, sender.world_name)
+    linktarget = reverse('stats_ind', args=(target.pk,))
+    fulltarget = '<a href="%s">%s</a>' % (linktarget, target.name)
+    linksender = reverse('stats_ind', args=(sender.pk,))
+    fullsender = '<a href="%s">%s</a>' % (linksender, sender.name)
 
     return "Your spy's intel network on %s has intercepted communications showing that it just received %s %s from the world of %s!" \
         % (fulltarget, resamount, resname, fullsender)
@@ -683,10 +696,10 @@ def notifyspyintercept(target, sender, resname, resamount):
 
 def notifyspyinterceptsend(sender, target, resname, resamount):
 
-    linksender = reverse('stats_ind', args=(sender.worldid,))
-    fullsender = '<a href="%s">%s</a>' % (linksender, sender.world_name)
-    linktarget = reverse('stats_ind', args=(target.worldid,))
-    fulltarget = '<a href="%s">%s</a>' % (linktarget, target.world_name)
+    linksender = reverse('stats_ind', args=(sender.pk,))
+    fullsender = '<a href="%s">%s</a>' % (linksender, sender.name)
+    linktarget = reverse('stats_ind', args=(target.pk,))
+    fulltarget = '<a href="%s">%s</a>' % (linktarget, target.name)
 
     return "Your spy's intel network on %s has intercepted communications showing that it just sent %s %s to the world of %s!" \
         % (fullsender, resamount, resname, fulltarget)
@@ -713,15 +726,19 @@ def mothball(amount, shiptext, key, direction):
 
     return data
 
+def recalled(fleetname, world):
+    fulldick = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    return "%s has recalled their fleet %s!" % (fulldick, fleetname)
+
+#def sendback()
+
 
 ###############
 ### ACTION NEWS
 ###############
 
 def offerpeace(world, target): #type 1
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-
-    fullworld = '<a href="%s">%s</a>' % (linkworld, world.world_name)
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
 
     data = "You have been offered a white peace by %s. &nbsp;&nbsp; \
             <input type='submit' name='acceptpeace' value='Accept' class='button'/> &nbsp;\

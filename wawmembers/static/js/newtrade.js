@@ -9,6 +9,7 @@ function Freightercalc() {
   var tot = null;
 
   if (res == 0 ||
+    res == 10 ||
     res == 11 ||
     res == 12 ||
     res == 13 ||
@@ -31,8 +32,8 @@ function Freightercalc() {
       $('#tradesstat').html('');
     }
     else {
-      var quan = amount/200;
-      if (amount%200 != 0) {
+      var quan = amount/250;
+      if (amount%250 != 0) {
         quan += 1;
       }
       quan = Math.floor(quan);
@@ -52,8 +53,8 @@ function Freightercalc() {
       $('#tradesstat').html('');
     }
     else {
-      var quan = amount/20;
-      if (amount%20 != 0) {
+      var quan = amount/50;
+      if (amount%50 != 0) {
         quan += 1;
       }
       quan = Math.floor(quan);
@@ -74,8 +75,8 @@ function Freightercalc() {
       $('#tradesstat').html('');
     }
     else {
-      var quan = amount/10;
-      if (amount%10 != 0) {
+      var quan = amount/40;
+      if (amount%40 != 0) {
         quan += 1;
       }
       quan = Math.floor(quan);
@@ -96,8 +97,8 @@ function Freightercalc() {
       $('#tradesstat').html('');
     }
     else {
-      var quan = amount/2;
-      if (amount%2 != 0) {
+      var quan = amount/30;
+      if (amount%30 != 0) {
         quan += 1;
       }
       quan = Math.floor(quan);

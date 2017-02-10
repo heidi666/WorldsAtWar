@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.templatetags.static import static
 
 # WaW Imports
-from wawmembers.models import World, AgreementLog
+from wawmembers.models import World #AgreementLog
 from wawmembers.decorators import ajax_required
 
 '''
@@ -49,21 +49,6 @@ def worldname(request):
             else:
                 return HttpResponse(True)
 
-
-@ajax_required
-def agreementread(request):
-    'Updates the read status of economic notifications.'
-    if request.method == "GET":
-        p = request.GET.copy()
-        if 'worldid' in p:
-            worldid = p['worldid']
-            try:
-                world = World.objects.get(worldid=worldid)
-            except:
-                pass
-            else:
-                AgreementLog.objects.filter(owner=world).update(seen=True)
-    return HttpResponse(True)
 
 
 @ajax_required

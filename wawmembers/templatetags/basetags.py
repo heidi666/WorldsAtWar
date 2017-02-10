@@ -4,7 +4,7 @@ from django.utils.safestring import mark_safe
 from django.templatetags.static import static
 
 # WaW Imports
-from wawmembers.models import World, Comm, NewsItem, ActionNewsItem, AgreementLog, GlobalData
+from wawmembers.models import World, Comm, NewsItem, ActionNewsItem, GlobalData
 import wawmembers.variables as v
 
 '''
@@ -19,7 +19,7 @@ def lowqolcs(context):
 
     request = context['request']
     try:
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         return ''
 
@@ -39,7 +39,7 @@ def bgchoice(context):
 
     request = context['request']
     try:
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         return static('backgrounds/%s.gif' % background)
     else:
@@ -57,7 +57,7 @@ def comms_quantity(context):
 
     request = context['request']
     try:
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         return ''
 
@@ -80,7 +80,7 @@ def news_quantity(context):
 
     request = context['request']
     try:
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         return ''
 
@@ -105,29 +105,6 @@ def news_quantity(context):
 register.simple_tag(news_quantity, takes_context=True)
 
 
-def agreementlog_quantity(context):
-
-    request = context['request']
-    try:
-        world = World.objects.get(worldid=request.user.id)
-    except:
-        return ''
-
-    total = AgreementLog.objects.filter(owner=world).count()
-    unread = AgreementLog.objects.filter(owner=world, seen=False).count()
-
-    if unread != 0:
-        toreturn = '(<i>%d</i>, %d)' % (unread, total)
-    elif total != 0:
-        toreturn = '(%d)' % total
-    else:
-        toreturn = ''
-
-    return mark_safe(toreturn)
-
-register.simple_tag(agreementlog_quantity, takes_context=True)
-
-
 def servertime():
     return v.now().strftime('%H:%M:%S')
 
@@ -139,7 +116,7 @@ def policieschoice(context, js):
 
     request = context['request']
     try:
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         toreturn = '<a href="/policies/economics">Policies</a>'
     else:

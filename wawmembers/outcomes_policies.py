@@ -1,6 +1,7 @@
 # Django Imports
 from django.core.urlresolvers import reverse
 from django.templatetags.static import static
+import wawmembers.variables as v
 
 '''
 Text results from the outcomes of policies.
@@ -45,17 +46,6 @@ def buildresource(result):
     return message
 
 
-def indprogram(result):
-    imgloc = static('wawmembers/production.gif')
-    if result == 'NoNum':
-        message = "Enter a number."
-    elif result == 'Above':
-        message = "The amount you have entered is above your program budget cap."
-    elif result == 'Success':
-        message = """<img src="%s" alt="production"><br>You changed the budget allocation for your industrial program.""" % imgloc
-    return message
-
-
 def noobgrowth(result):
     imgloc = static('wawmembers/cheap.gif')
     if result == 'TooRich':
@@ -73,28 +63,6 @@ def buybonds(result):
         message = "Despite your buying program, the economy fails to grow."
     elif result == 'NotFreeorMixed':
         message = "You are a Central Planning world!"
-    return message
-
-
-def impmodel(result):
-    imgloc = static('wawmembers/impmodel.gif')
-    if 30 < result <= 100:
-        message = """<img src="%s" alt="impmodel"><br>Your model makes several improvements to your economy! Growth increases.""" % imgloc
-    elif 1 <= result <= 30:
-        message = "Your model fails to produce any noticeable improvements to the economy."
-    elif result == 'NotCentralPlanning':
-        message = "You are a not a Central Planning world!"
-    return message
-
-
-def qeasing(result):
-    imgloc = static('wawmembers/qeasing.gif')
-    if 50 < result <= 100:
-        message = """<img src="%s" alt="qeasing"><br>The banks lend out the extra money, and growth increases!""" % imgloc
-    elif 1 <= result <= 50:
-        message = "Growth fails to increase as the banks lend out hardly any of the extra money."
-    elif result == 'LowStab':
-        message = "Your stability is too low for this policy."
     return message
 
 
@@ -192,6 +160,29 @@ def salvagemission(result):
         message = """<img src="%s" alt="salvage"><br>Your salvage mission managed to return <br>\
             %s in useful materials.""" % (imgloc, salvagetext(result[0],result[1],result[2]))
     return message
+
+prospecting = {
+    'warpfuelprod': buildfuelrefinery,
+    'duraniumprod': prospectduranium,
+    'tritaniumprod': prospecttritanium,
+    'adamantiumprod': prospectadamantium,
+}
+
+def shutdown(minetype):
+    imgloc = static('wawmembers/closedmine.jpg')
+    imgstr = '<img src="%s" alt="salvage"><br>' % imgloc
+    result = minetype + (' refinery' if minetype == 'warpfuel' else ' mine')
+    return "The workers are sad they have to find new jobs as your %s shuts down." % result
+
+
+def nomines(minetype):
+    adj = minetype + (' refinery' if minetype == 'warpfuel' else ' mine')
+    return "Can't shut down another %s! They're all closed!" % adj
+
+def reopen(minetype):
+    adj = minetype + (' refinery' if minetype == 'warpfuel' else ' mine')
+    imgstr = '<img src="%s" alt="salvage"><br>' % static('wawmembers/%s.gif' % minetype)
+    return "%sThe workers are happy to be employed once more and are eager to resume working!" % imgstr
 
 
 ############
@@ -340,7 +331,7 @@ def counterintel(result):
 ############
 
 def researchtext(world, incr):
-    from wawmembers.utilities import movecomplete, levellist
+    from wawmembers.utilities import levellist
 
     current = world.millevel
     total = world.millevel + incr
@@ -353,7 +344,7 @@ def researchtext(world, incr):
     progress7 = "Our admirals and the fleet engineer corps are testing the new %s in a series of exercises."
     completed = "The new %s has been completed and is ready for production. Schematics have been sent to all shipyards!"
     corlevel, lcrlevel, deslevel, frilevel, hcrlevel, bcrlevel, bshlevel, drelevel = levellist()
-
+    techrecieve = False
     if total < corlevel:
         if (total-0) > ((corlevel - 0)*90)/float(100):
             message = progress7 % 'corvette'
@@ -371,10 +362,7 @@ def researchtext(world, incr):
             message = progress1 % 'corvette'
     elif (current < corlevel) and (current + incr >= corlevel):
         message = completed % 'corvette'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 2, 1, 'S', 0)
-        else:
-            movecomplete(world, 2, 1, world.region, 0)
+        techrecieve = "corvettes"
 
     elif total < lcrlevel:
         if (total-corlevel) > ((lcrlevel - corlevel)*90)/float(100):
@@ -393,10 +381,7 @@ def researchtext(world, incr):
             message = progress1 % 'light cruiser'
     elif (current < lcrlevel) and (current + incr >= lcrlevel):
         message = completed % 'light cruiser'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 3, 1, 'S', 0)
-        else:
-            movecomplete(world, 3, 1, world.region, 0)
+        techrecieve = "light_cruisers"
 
     elif total < deslevel:
         if (total-lcrlevel) > ((deslevel - lcrlevel)*90)/float(100):
@@ -415,10 +400,7 @@ def researchtext(world, incr):
             message = progress1 % 'destroyer'
     elif (current < deslevel) and (current + incr >= deslevel):
         message = completed % 'destroyer'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 4, 1, 'S', 0)
-        else:
-            movecomplete(world, 4, 1, world.region, 0)
+        techrecieve = "destroyers"
 
     elif total < frilevel:
         if (total-deslevel) > ((frilevel - deslevel)*90)/float(100):
@@ -437,10 +419,7 @@ def researchtext(world, incr):
             message = progress1 % 'frigate'
     elif (current < frilevel) and (current + incr >= frilevel):
         message = completed % 'frigate'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 5, 1, 'S', 0)
-        else:
-            movecomplete(world, 5, 1, world.region, 0)
+        techrecieve = "frigates"
 
     elif total < hcrlevel:
         if (total-frilevel) > ((hcrlevel - frilevel)*90)/float(100):
@@ -459,10 +438,7 @@ def researchtext(world, incr):
             message = progress1 % 'heavy cruiser'
     elif (current < hcrlevel) and (current + incr >= hcrlevel):
         message = completed % 'heavy cruiser'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 6, 1, 'S', 0)
-        else:
-            movecomplete(world, 6, 1, world.region, 0)
+        techrecieve = "heavy_cruisers"
 
     elif total < bcrlevel:
         if (total-hcrlevel) > ((bcrlevel - hcrlevel)*90)/float(100):
@@ -481,10 +457,7 @@ def researchtext(world, incr):
             message = progress1 % 'battlecruiser'
     elif (current < bcrlevel) and (current + incr >= bcrlevel):
         message = completed % 'battlecruiser'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 7, 1, 'S', 0)
-        else:
-            movecomplete(world, 7, 1, world.region, 0)
+        techrecieve = "battlecruisers"
 
     elif total < bshlevel:
         if (total-bcrlevel) > ((bshlevel - bcrlevel)*90)/float(100):
@@ -503,10 +476,7 @@ def researchtext(world, incr):
             message = progress1 % 'battleship'
     elif (current < bshlevel) and (current + incr >= bshlevel):
         message = completed % 'battleship'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 8, 1, 'S', 0)
-        else:
-            movecomplete(world, 8, 1, world.region, 0)
+        techrecieve = "battleships"
 
     elif total < drelevel:
         if (total-bshlevel) > ((drelevel - bshlevel)*90)/float(100):
@@ -526,11 +496,13 @@ def researchtext(world, incr):
 
     elif (current < drelevel) and (current + incr >= drelevel):
         message = completed % 'dreadnought'
-        if 'receivestaging' in world.shipsortprefs:
-            movecomplete(world, 9, 1, 'S', 0)
-        else:
-            movecomplete(world, 9, 1, world.region, 0)
-
+        techrecieve = "dreadnoughts"
+    if techrecieve:
+        next_tier = v.shipindices.index(techrecieve) - 1
+        world.techlevel = v.tiers[next_tier]
+        world.save(update_fields=['techlevel'])
+        world.preferences.recievefleet.__dict__[techrecieve] += 1
+        world.preferences.recievefleet.save(update_fields=[techrecieve])
     return message
 
 

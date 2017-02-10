@@ -1,15 +1,17 @@
 # Django Imports
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render, get_object_or_404
-from django.db.models import F
+from django.db.models import F, Q
 from django.db.models import Sum
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.cache import cache
+from django.template.defaultfilters import slugify
 
 # Python Imports
 from collections import OrderedDict
 import random, decimal
 import datetime as time
+import json
 
 # WaW Imports
 from wawmembers.models import *
@@ -24,6 +26,7 @@ import wawmembers.taskgenerator as taskdata
 import wawmembers.utilities as utilities
 import wawmembers.variables as v
 import wawmembers.turnupdates as turnupdates
+from wawmembers.interactions import stats_ind
 
 '''
 The main file. Most page functions are carried out here.
@@ -36,19 +39,25 @@ def index(request):
     'Front page.'
     donators = cache.get('donators') # no need to
     if not donators:
-        donators = list(World.objects.filter(donator=True).exclude(worldid=1))
+        donators = list(preferences.objects.filter(donor=True).exclude(world__pk=1))
         cache.set('donators', donators, 60 * 60 * 24)
     return render(request, 'index.html', {'donators': donators})
 
 
 @login_required
 @world_required
-def main(request, world, message=None):
+def main(request, message=None):
     'Main page: user\'s world.'
-
+    world = request.user.world
+    researchlevels = GlobalData.objects.get(pk=1)
     haswars = offlist = deflist = None
     warprotection = abovegdpprotection = brokenwarprotect = None
-
+    upkeep = 0
+    for entry in v.upkeep:
+        upkeep += world.__dict__[entry] * v.upkeep[entry]
+        if world.sector == 'cleon':
+            upkeep *= 0.8 #total upkeep
+    upkeep = round(upkeep)
     ip = request.META.get('REMOTE_ADDR')
     world.lastloggedinip = ip
     world.lastloggedintime = v.now()
@@ -60,63 +69,24 @@ def main(request, world, message=None):
         deflist = [war.attacker for war in world.wardefender.all()]
 
     displaybuilds = [False for i in range(9)]
-    corlevel, lcrlevel, deslevel, frilevel, hcrlevel, bcrlevel, bshlevel, drelevel = utilities.levellist()
 
-    if world.millevel >= drelevel:
-        limit = 9
-        millevel = 'Dreadnought'
-        progress = None
-    elif world.millevel >= bshlevel:
-        limit = 9
-        millevel = 'Battleship'
-        progress = (world.millevel - bshlevel)/float(drelevel - bshlevel)
-    elif world.millevel >= bcrlevel:
-        limit = 8
-        millevel = 'Battlecruiser'
-        progress = (world.millevel - bcrlevel)/float(bshlevel - bcrlevel)
-    elif world.millevel >= hcrlevel:
-        limit = 7
-        millevel = 'Heavy Cruiser'
-        progress = (world.millevel - hcrlevel)/float(bcrlevel - hcrlevel)
-    elif world.millevel >= frilevel:
-        limit = 6
-        millevel = 'Frigate'
-        progress = (world.millevel - frilevel)/float(hcrlevel - frilevel)
-    elif world.millevel >= deslevel:
-        limit = 5
-        millevel = 'Destroyer'
-        progress = (world.millevel - deslevel)/float(frilevel - deslevel)
-    elif world.millevel >= lcrlevel:
-        limit = 4
-        millevel = 'Light Cruiser'
-        progress = (world.millevel - lcrlevel)/float(deslevel - lcrlevel)
-    elif world.millevel >= corlevel:
-        limit = 3
-        millevel = 'Corvette'
-        progress = (world.millevel - corlevel)/float(lcrlevel - corlevel)
+    rindex = v.tiers.index(world.techlevel) + 1
+    if world.techlevel != v.tiers[len(v.tiers) - 1]: #max tier
+        progress = world.millevel/float(researchlevels.tiers()[v.tiers[rindex]]) #lol
     else:
-        limit = 2
-        millevel = 'Fighter'
-        progress = world.millevel/float(corlevel)
-    for index, value in enumerate(displaybuilds[:limit]):
+        progress = None
+
+    for index, value in enumerate(displaybuilds[:rindex-1]):
         displaybuilds[index] = True
 
     if progress is not None:
         progress = int(100*progress/5.0)*5
-
-    homeregion, staging, region1, region2, region3, hangars = utilities.mildisplaylist(world)
-
-    world = World.objects.get(worldid=world.worldid)
+    milinfo = utilities.mildisplaylist(world)
+    mildisplay = display.fleet_display(milinfo[0], milinfo[1])
+    sparefreighters = world.freighters - world.freightersinuse
 
     tooltips = utilities.tooltipdisplay(world)
-
-    alliance = world.alliance
-    current, maximum = utilities.trainingstatus(world, world.region)
-    traininglevel = display.training_display(current, maximum)
-    cansendpower = int(world.startpower*0.5) - world.powersent
-    if cansendpower <= 0:
-        cansendpower = 'None'
-    shiploc = display.region_display(world.flagshiplocation)
+    #shiploc = display.region_display(world.flagshiplocation)
 
     if world.warprotection > v.now():
         timediff = world.warprotection - v.now()
@@ -137,32 +107,279 @@ def main(request, world, message=None):
         h,m,s = utilities.timedeltadivide(timediff)
         brokenwarprotect = 'You are not able to gain war protection for another %s:%s:%s.' % (h,m,s)
 
-    return render(request, 'main.html', {'world': world, 'alliance': alliance, 'millevel': millevel, 'displaybuilds':displaybuilds,
-        'homeregion':homeregion, 'region1':region1, 'region2':region2, 'region3':region3, 'traininglevel':traininglevel, 'haswars':haswars,
-        'offlist':offlist, 'deflist':deflist, 'progress':progress, 'tooltips':tooltips, 'warprotection':warprotection, 'message':message,
-        'abovegdpprotection':abovegdpprotection, 'brokenwarprotect':brokenwarprotect, 'hangars':hangars, 'staging':staging,
-        'cansendpower':cansendpower, 'shiploc':shiploc})
+    return render(request, 'main.html', {'world': world, 'alliance': world.alliance, 'displaybuilds':displaybuilds,
+        'mildisplay': mildisplay, 'haswars':haswars, 'sparefreighters': sparefreighters, 'tooltips': tooltips,
+        'offlist':offlist, 'deflist':deflist, 'upkeep': upkeep, 'progress':progress, 'warprotection':warprotection, 'message':message,
+        'abovegdpprotection':abovegdpprotection, 'brokenwarprotect':brokenwarprotect})
+
+#wrapper for world page view to enable custom urls
+def world_page(request, url):
+    try:
+        target = World.objects.get(pk=url)
+    except:
+        try:
+            target = donorurl.objects.get(url=url)
+        except: #captured url is neither a primary key or custom url
+            return render(request, 'notfound.html', {'item': 'world'}) # instead of 404
+        else:
+            return stats_ind(request, target.owner.world.pk)
+    return stats_ind(request, url)
 
 
 @login_required
 @world_required
-def spies(request, world):
+def fleet_management(request):
+    world = request.user.world
+    if world.tempmsg:
+        result = world.tempmsg
+        World.objects.filter(pk=world.pk).update(tempmsg="")
+    else:
+        result = ""
+    if request.method == "POST":
+        if 'merge' in request.POST:
+            try:
+                mergee = world.fleets.all().get(pk=request.POST['merge'])
+            except:
+                result = "stop using inspect element asshole"
+            else:
+                form = mergeform(world, mergee, request.POST)
+                if form.is_valid():
+                    utilities.atomic_fleet(form.cleaned_data['fleetchoice'].pk, 'merge', mergee.pk)
+                    if mergee.sector != 'hangar':
+                        mergee.delete()
+                    result = "%s has successfully been merged into %s!" % (mergee.name, form.cleaned_data['fleetchoice'])
+                else:
+                    result = "Invalid fleet choice"
+
+        elif 'recall' in request.POST:
+            try:
+                recallee = world.fleets.all().get(pk=request.POST['recall'])
+            except:
+                result = "stop using inspect element asshole"
+            else:
+                form = sectorchoice(request.POST)
+                if form.is_valid():
+                    fuelstatus = recallee.enoughfuel()
+                    if fuelstatus[1] != 'warpfuel': 
+                        #set taskdata and subtract fuelcost from host world
+                        #then warp the fleet and add newsitem to recalled world
+                        if form.cleaned_data['choice'] == recallee.sector:
+                            delay = 4
+                        else:
+                            delay = 8
+                        outcometime = v.now() + time.timedelta(hours=delay)
+                        action = {'warpfuel': {'action': 'subtract', 'amount': recallee.fuelcost()}}
+                        utilities.atomic_world(recallee.controller.pk, action)
+                        action = {'set': {'controller': world, 'sector': 'warping'}}
+                        utilities.atomic_fleet(recallee.pk, action)
+                        taskdetails = taskdata.recallfleet(recallee.name, 
+                            recallee.controller.name, form.cleaned_data['choice'])
+                        task = Task.objects.create(target=world, 
+                            content=taskdetails, datetime=outcometime)
+                        newtask.fleet_warp.apply_async(args=(recallee.pk, 
+                            form.cleaned_data['choice'], task.pk), eta=outcometime)
+                        result = "Fleet %s bugs out and is headed home" % recallee.name
+                    else:
+                        result = "%s doesn't have enough fuel to send our boys home!" % recallee.controller.name
+                else:
+                    result = "can't inspect element your way to cheats bruv"
+
+        elif 'sendback' in request.POST:
+            try:
+                sendbackee = world.controlled_fleets.all().get(pk=request.POST['sendback'])
+            except:
+                result = "stop using inspect element m8"
+            else:
+                form = sectorchoice(request.POST)
+                if form.is_valid():
+                    fuelstatus = sendbackee.enoughfuel()
+                    if fuelstatus[1] != 'warpfuel': #set taskdata and subtract fuelcost from host world
+                        #then warp the fleet and add newsitem to recalled world
+                        if form.cleaned_data['choice'] == sendbackee.sector:
+                            delay = 4
+                        else:
+                            delay = 8
+                        outcometime = v.now() + time.timedelta(hours=delay)
+                        action = {'warpfuel': {'action': 'subtract', 'amount': sendbackee.fuelcost()}}
+                        utilities.atomic_world(world.pk, action)
+                        action = {'set': {'controller': sendbackee.world, 'sector': 'warping'}}
+                        utilities.atomic_fleet(sendbackee.pk, action)
+                        taskdetails = taskdata.sendbackfleet(sendbackee.name, 
+                            world.name, form.cleaned_data['choice'])
+                        task = Task.objects.create(target=sendbackee.world, 
+                            content=taskdetails, datetime=outcometime)
+                        newtask.fleet_warp.apply_async(args=(sendbackee.pk, 
+                            form.cleaned_data['choice'], task.pk), eta=outcometime)
+                        result = "Fleet %s bugs out and is headed home" % sendbackee.name
+                    else:
+                        result = "We don't have enough fuel to send them home!"
+                else:
+                    result = "can't inspect element your way to cheats bruv"
+
+        elif 'changename' in request.POST:
+            form = fleetnamechangeform(request.POST)
+            if form.is_valid(): #simple namechange
+                try: #should be no need to check for race conditions
+                    tgt = world.fleets.all().get(name=request.POST['changename'])
+                except:
+                    result = "Can't change the name of a fleet you don't own"
+                else:
+                    tgt.name = form.cleaned_data['name']
+                    tgt.save(update_fields=['name'])
+                    result = "%s has been renamed" % request.POST['changename']
+            else:
+                result = "Invalid name"
+
+        elif 'newfleet' in request.POST:
+            sectorform = sectorchoice(request.POST)
+            nameform = fleetnamechangeform(request.POST)
+            if nameform.is_valid() and sectorform.is_valid():
+                fleet.objects.create(world=world, controller=world, 
+                    sector=sectorform.cleaned_data['choice'],
+                    name=nameform.cleaned_data['name'])
+                result = "%s is ready and has been positioned in %s!" % (nameform.cleaned_data['name'], sectorform.cleaned_data['choice'])
+            else:
+                if not nameform.is_valid():
+                    result = "Name for new fleet is too long!"
+                else:
+                    result = "Incorrect sector chosen, inspecting element will not yield you anything"
+
+        elif 'delete' in request.POST:
+            eligible_fleets = world.fleets.all().filter(controller=world).exclude(sector='warping')
+            try:
+                Fleet = eligible_fleets.get(pk=request.POST['delete'])
+            except:
+                result = "This fleet cannot be decomissioned!"
+            else:
+                if Fleet.empty():
+                    result = "%s has been retired from active service!" % Fleet.name
+                    Fleet.delete()
+                else:
+                    result = "This fleet cannot be decomissioned!"
+
+    fleetlist = fleet.objects.filter(Q(world=world)|Q(controller=world)).order_by('sector')
+    fleetquery = fleetlist
+    len(fleetlist) #evaluate and cache all fleets to avoid multiple database hits
+    owned = display.fleetmanagementdisplay(fleetlist.filter(world=world, controller=world), world)
+    outstanding = display.fleetmanagementdisplay(fleetlist.exclude(controller=world), world)
+    borrowed = display.fleetmanagementdisplay(fleetlist.exclude(world=world), world)
+    fleetlist = [
+    {'fleets': owned, 'fleetype': 'Owned',
+    'owned': True, 'count': len(owned)}, 
+    {'fleets': borrowed, 'fleetype': 'Borrowed', 'borrowed': True,
+    'owned': False, 'count': len(borrowed)},
+    {'fleets': outstanding, 'fleetype': 'Outstanding', 'outstanding': True,
+    'owned': True, 'count': len(outstanding)}]
+    for entry in fleetlist:
+        for fleetobject in entry['fleets']: #WE HAVE TO GO DEEPER
+            obj = fleetquery.get(pk=fleetobject['pk'])
+            fleetobject.update({'sector': obj.sector, 'empty': obj.empty()})
+            if fleetobject['name'] == 'Hangar': #can't change hangars
+                fleetobject.update({'nameform': {'name': fleetobject['name']}})
+            else:
+                fleetobject.update({'nameform': fleetnamechangeform(initial={'name': fleetobject['name']})})
+            if obj.world == world and obj.controller == world:
+                fleetobject.update({'mergeform': mergeform(world, obj)})
+
+    context = {
+        'datablob': fleetlist, 
+        'sectorchoiceform': sectorchoice(),
+        'result': result,
+        'nameform': fleetnamechangeform()}
+    return render(request, 'fleet.html', context)
+
+@login_required
+@world_required
+def fleet_logs(request):
+    pass
+
+
+@login_required
+@world_required
+def exchange_ships(request):
+    context = {}
+    world = request.user.world
+    if request.method == "POST":
+        if 'move' in request.POST:
+            fleet1 = world.fleets.all().filter(controller=world).get(pk=request.POST['move'])
+            form = mergeform(world, fleet1, request.POST)
+            if form.is_valid():
+                fleet2 = form.cleaned_data['fleetchoice']
+                init = {}
+                totals = []
+                h1 = utilities.display.highestship(fleet1)
+                h2 = utilities.display.highestship(fleet2)
+                highest = (h1 if v.shipindices.index(h1) > v.shipindices.index(h2) else h2)
+                for ship in v.shipindices:
+                    init.update({
+                        '%s %s' % (fleet1.pk, ship): fleet1.__dict__[ship],
+                        '%s %s' % (fleet2.pk, ship): fleet2.__dict__[ship],
+                    })
+                    if v.shipindices.index(highest) >= v.shipindices.index(ship):
+                        totals.append(fleet1.__dict__[ship] + fleet2.__dict__[ship])
+
+                context.update({
+                    'form': Shipexchangeform(fleet1, fleet2, initial=init),
+                    'fleet1': {'render': display.fleetexchangedisplay(fleet1, highest), 'name': fleet1.name, 'pk': fleet1.pk},
+                    'fleet2': {'render': display.fleetexchangedisplay(fleet2, highest), 'name': fleet2.name, 'pk': fleet2.pk},
+                    'totals': totals,
+                    })
+            else:
+                World.objects.filter(pk=world.pk).update(tempmsg="Invalid fleet selected")
+                return redirect('fleet_management')
+        elif 'set' in request.POST:
+            try: #only using eligible fleets
+                fleets = world.fleets.all().filter(controller=world).exclude(sector="warping")
+                fleet1 = fleets.get(pk=request.POST['fleet1'])
+                fleet2 = fleets.get(pk=request.POST['fleet2'])
+            except:
+                World.objects.filter(pk=world.pk).update(tempmsg="Forging POST data is naughty")
+                return redirect('fleet_management')
+            form = Shipexchangeform(fleet1, fleet2, request.POST)
+            if form.is_valid():
+                data = form.cleaned_data
+                fleet1_ratio = fleet1.ratio()
+                fleet2_ratio = fleet2.ratio()
+                h1 = utilities.display.highestship(fleet1)
+                h2 = utilities.display.highestship(fleet2)
+                highest = (h1 if v.shipindices.index(h1) > v.shipindices.index(h2) else h2)
+                utilities.exchange_set(fleet1, fleet2_ratio, data, highest)
+                utilities.exchange_set(fleet2, fleet1_ratio, data, highest)
+                fleet1.save()
+                fleet2.save()
+                msg = "Ships successfully exchanged between %s and %s!" % (fleet1.name, fleet2.name)
+                World.objects.filter(pk=world.pk).update(tempmsg=msg)
+                return redirect('fleet_management')
+            else:
+                World.objects.filter(pk=world.pk).update(tempmsg="Too many ships entered")
+                return exchange_ships(request)
+
+    else:
+        return redirect('fleet_management')
+    return render(request, 'fleetexchange.html', context)
+
+
+@login_required
+@world_required
+def spies(request):
+    world = request.user.world
     spieslist = list(Spy.objects.filter(owner=world))
     return render(request, 'spies.html', {'spieslist': spieslist})
 
 
 @login_required
 @world_required
-def warlogs(request, world):
+def warlogs(request):
+    world = request.user.world
 
     if request.method == 'POST':
         form = request.POST
 
         if "delete" in form:      # deletes news by checkbox
-            listitems = request.POST.getlist('warlogitems')
+            listitems = request.POST.getlist('Warlogitems')
             for i in listitems:
                 try:
-                    item = WarLog.objects.get(pk=i)
+                    item = Warlog.objects.get(pk=i)
                 except ObjectDoesNotExist:
                     pass
                 else:
@@ -170,18 +387,18 @@ def warlogs(request, world):
                         item.delete()
 
         if "deleteall" in form:   # deletes all news
-            WarLog.objects.filter(owner=world).delete()
+            Warlog.objects.filter(owner=world).delete()
 
         if "deletebyworld" in form:
-            worldid = form["target"]
+            pk = form["target"]
             try:
-                target = World.objects.get(worldid=worldid)
+                target = World.objects.get(pk=pk)
             except ObjectDoesNotExist:
                 pass
             else:
-                WarLog.objects.filter(owner=world, target=target).delete()
+                Warlog.objects.filter(owner=world, target=target).delete()
 
-    loglist = list(WarLog.objects.all().filter(owner=world).order_by('-datetime'))
+    loglist = list(Warlog.objects.all().filter(owner=world).order_by('-datetime'))
 
     deleteform = DeleteByTargetForm(world, 'war')
 
@@ -190,13 +407,15 @@ def warlogs(request, world):
 
 @login_required
 @world_required
-def reslogs(request, world):
-
+def reslogs(request):
+    world = request.user.world
+    context = {'world': world}
     if request.method == 'POST':
         form = request.POST
 
         if "delete" in form:      # deletes news by checkbox
             listitems = request.POST.getlist('reslogitems')
+            deleted = 0
             for i in listitems:
                 try:
                     item = ResourceLog.objects.get(pk=i)
@@ -205,24 +424,48 @@ def reslogs(request, world):
                 else:
                     if item.owner == world:
                         item.delete()
+                        deleted += 1
+            if deleted > 0:
+                entry = ('entries' if deleted > 1 else 'entry')
+                context.update({'message': '%s log %s deleted' % (deleted, entry)})
 
         if "deleteall" in form:   # deletes all news
             ResourceLog.objects.filter(owner=world).delete()
+            context.update({'message': 'All log entries deleted'})
 
         if "deletebyworld" in form:
-            worldid = form["target"]
+            pk = form["target"]
             try:
-                target = World.objects.get(worldid=worldid)
+                target = World.objects.get(pk=pk)
+                count = ResourceLog.objects.filter(owner=world, target=target).count()
             except ObjectDoesNotExist:
                 pass
             else:
                 ResourceLog.objects.filter(owner=world, target=target).delete()
+                deleted = count - ResourceLog.objects.filter(owner=world, target=target).count()
+                entry = ('entries' if deleted > 1 else 'entry')
+                context.update({'message': '%s log %s deleted' % (deleted, entry)})
 
-    loglist = list(ResourceLog.objects.all().filter(owner=world).order_by('-datetime'))
-
+    logs = ResourceLog.objects.prefetch_related('resources').filter(owner=world).order_by('-datetime')
+    loglist = []
+    for log in logs:
+        loglist.append({'log': log})
+    logdisplay = []
+    for log in loglist:
+        logs = log['log'].resources.all().order_by('pk')
+        resources = []
+        for log in logs:
+            resources.append([log.resource, log.amount])
+        logdisplay.append(utilities.resource_text(resources))
+    for log, text in zip(loglist, logdisplay):
+        log.update({'text': text})
     deleteform = DeleteByTargetForm(world, 'res')
+    context.update({
+        'loglist': loglist,
+        'deleteform':deleteform,
+        })
 
-    return render(request, 'reslogs.html', {'world':world,'loglist': loglist, 'deleteform':deleteform})
+    return render(request, 'reslogs.html', context)
 
 
 @login_required
@@ -230,7 +473,7 @@ def new_world(request):
     'New world page, only if the user has not already got a world.'
 
     message = None
-    if World.objects.filter(worldid=request.user.id).exists():
+    if World.objects.filter(user=request.user).exists():
         return redirect('main')
     else:
         if request.method == 'POST':
@@ -239,46 +482,33 @@ def new_world(request):
                 data = form.cleaned_data
                 worldname = data['worldname']
                 regionin = data['region']
-                if regionin not in v.sectors:
-                    message = 'Sector choice error.'
+                econsysin = data['econsystem']
+                polsysin = data['polsystem']
+                ip = request.META.get('REMOTE_ADDR')
+                try:
+                    World.objects.get(name=worldname)
+                except:
+                    pass
                 else:
-                    econsysin = data['econsystem']
-                    polsysin = data['polsystem']
-                    ip = request.META.get('REMOTE_ADDR')
-                    try:
-                        newnation = World(worldid=request.user.id, creationip=ip, user_name=request.user.username,
-                            world_name=worldname, region=regionin, econsystem=econsysin, polsystem=polsysin)
-                        newnation.save()
-                    except:
-                        message = 'That world name is already in use! Pick another.'
-                    else:
-                        if regionin == 'A':
-                            newnation.fighters_inA = 10
-                            newnation.freighter_inA = 10
-                            newnation.resource = random.randint(1,3)
-                        elif regionin == 'B':
-                            newnation.fighters_inB = 10
-                            newnation.freighter_inB = 10
-                            newnation.resource = random.randint(4,6)
-                        elif regionin == 'C':
-                            newnation.fighters_inC = 10
-                            newnation.freighter_inC = 10
-                            newnation.resource = random.randint(7,9)
-                        elif regionin == 'D':
-                            newnation.fighters_inD = 10
-                            newnation.freighter_inD = 10
-                            newnation.resource = random.randint(10,12)
-                        if newnation.worldid in v.donatorlist:
-                            newnation.donator = True
-                        newnation.save()
-                        for i in xrange(5):
-                            agreement = Agreement(sender=newnation, receiver=newnation, order=-1, resource=newnation.resource)
-                            agreement.save()
-                        htmldata = news.newbevent(worldname)
-                        ActionNewsItem.objects.create(target=newnation, content=htmldata, actiontype=2)
-                        admin = World.objects.get(worldid=1)
-                        Comm.objects.create(target=newnation, sender=admin, content=v.introcomm)
-                        return redirect('main')
+                    message = "That world name is already in use!"
+                    return render(request, 'newworld.html', {'form': form,'message':message,'regiondata':v.regiondata,'econdata':v.econdata,'poldata':v.poldata})
+                newnation = World.objects.create(user=request.user, gdp=1000, creationip=ip, name=worldname, 
+                    sector=regionin, econsystem=econsysin, polsystem=polsysin, freighters=3)
+                preferences.objects.create(world=newnation)
+                if newnation.user.username in v.donorlist:
+                    newnation.preferences.donor = True
+                    donorurl.objects.create(owner=newnation.preferences)
+                    newnation.save()
+                tgt = fleet.objects.create(world=newnation, controller=newnation, name="%s fleet" % newnation.sector, freighters=2, fighters=10, sector=newnation.sector)
+                fleet.objects.create(world=newnation, controller=newnation, sector="hangar", name="Hangar")
+                newnation.preferences.recievefleet = tgt
+                newnation.preferences.buildfleet = tgt
+                newnation.preferences.save()
+                htmldata = news.newbevent(worldname)
+                ActionNewsItem.objects.create(target=newnation, content=htmldata, actiontype=2)
+                admin = World.objects.get(pk=1)
+                Comm.objects.create(target=newnation, sender=admin, content=v.introcomm)
+                return redirect('main')
         else:
             form = NewWorldForm()
 
@@ -287,18 +517,35 @@ def new_world(request):
 
 @login_required
 @world_required
-def settings(request, world):
+def settings(request):
     'Users change settings here.'
-
+    world = request.user.world
     message = None
     invalid = 'Invalid preference selected.'
 
     if request.method == 'POST':
         form = request.POST
 
+        if 'donorurl' in form and world.preferences.donor:
+            form = donorurlform(request.POST)
+            if form.is_valid():
+                try:
+                    int(form.cleaned_data['url'])
+                except:
+                    url = slugify(form.cleaned_data['url'])
+                    try:
+                        donorurl.objects.get(url=url)
+                    except:
+                        #good to go
+                        world.preferences.donorurl.url = url
+                        world.preferences.donorurl.save()
+                        message = "URL has been set"
+            if message != "URL has been set":
+                message = "Invalid URL"
+
         if "editdesc" in form:
             desc = form['description']
-            limit = (500 if world.donator else 300)
+            limit = (500 if world.preferences.donor else 300)
             if len(desc) > limit:
                 message = 'The description you entered is too long.'
             elif '<' in desc or '>' in desc:
@@ -307,24 +554,6 @@ def settings(request, world):
                 world.world_desc = desc
                 world.save(update_fields=['world_desc'])
                 message = 'Description changed.'
-
-        if "setfleetnames" in form:
-            listnames = request.POST.getlist('fleetname')
-            toolong = 0
-            for name in listnames:
-                if len(name) > 15:
-                    toolong += 1
-            if toolong > 0:
-                message = 'One of the fleet names you entered is too long.'
-            else:
-                world.fleetname_inA = listnames[0]
-                world.fleetname_inB = listnames[1]
-                world.fleetname_inC = listnames[2]
-                world.fleetname_inD = listnames[3]
-                world.fleetname_inH = listnames[4]
-                world.fleetname_inS = listnames[5]
-                world.save(update_fields=['fleetname_inA', 'fleetname_inB', 'fleetname_inC', 'fleetname_inD', 'fleetname_inH', 'fleetname_inS'])
-                message = 'Fleet names changed.'
 
         if "selectsort" in form:
             form = CommDisplayForm(request.POST)
@@ -398,8 +627,8 @@ def settings(request, world):
                 if 'fl' not in flagid:
                     message = 'Invalid flag selected.'
                 else:
-                    world.flag = flagid
-                    world.save(update_fields=['flag'])
+                    world.preferences.flag = flagid
+                    world.preferences.save(update_fields=['flag'])
                     message = 'Flag changed.'
 
         if "selectps" in form:
@@ -424,8 +653,8 @@ def settings(request, world):
                 if 'av' not in avatarid:
                     message = 'Invalid avatar selected.'
                 else:
-                    world.avatar = avatarid
-                    world.save(update_fields=['avatar'])
+                    world.preferences.avatar = avatarid
+                    world.preferences.save(update_fields=['avatar'])
                 message = 'Avatar changed.'
 
         if "selectbackground" in form:
@@ -446,29 +675,29 @@ def settings(request, world):
                 world.save(update_fields=['flagshipname'])
                 message = 'Flagship name changed.'
 
-        if world.donator:
+        if world.preferences.donor:
             if "setcustomflag" in form:
                 customflag = form['customflag']
-                world.donatorflag = customflag
-                world.save(update_fields=['donatorflag'])
+                world.preferences.donatorflag = customflag
+                world.preferences.save(update_fields=['donatorflag'])
                 message = 'Flag changed.'
 
             if "setcustomavatar" in form:
                 customavatar = form['customavatar']
-                world.donatoravatar = customavatar
-                world.save(update_fields=['donatoravatar'])
+                world.preferences.donatoravatar = customavatar
+                world.preferences.save(update_fields=['donatoravatar'])
                 message = 'Avatar changed.'
 
             if "setcustomanthem" in form:
                 customanthem = form['customanthem']
-                world.donatoranthem = customanthem
-                world.save(update_fields=['donatoranthem'])
+                world.preferences.donatoranthem = customanthem
+                world.preferences.save(update_fields=['donatoranthem'])
                 message = 'Anthem changed.'
 
             if "setcustomps" in form:
                 custompic = form['customps']
-                world.donatorflagship = custompic
-                world.save(update_fields=['donatorflagship'])
+                world.preferences.donatorflagship = custompic
+                world.preferences.save(update_fields=['donatorflagship'])
                 message = 'Personal ship picture changed.'
 
             if "setcustomdescriptor" in form:
@@ -489,93 +718,25 @@ def settings(request, world):
                     world.save(update_fields=['leadertitle'])
                     message = 'Leader title changed.'
 
-    world = World.objects.get(pk=world.pk)
 
-    flagform = FlagForm(initial={'flag':world.flag})
-    avatarform = AvatarForm(initial={'avatar':world.avatar})
+    flagform = FlagForm(initial={'flag':world.preferences.flag})
+    avatarform = AvatarForm(initial={'avatar':world.preferences.avatar})
     commform = CommDisplayForm(initial={'sortby':world.commpref})
     bgform = BackgroundForm(initial={'background':world.backgroundpref})
-    policyform = PolicyChoiceForm(initial={'policychoice':world.policypref})
-    shipform = ShipChoiceForm(initial={'buildchoice':world.buildpref})
+    policyform = PolicyChoiceForm(initial={'policychoice':world.policypref})    
     flagdisplayform = FlagDisplayForm(initial={'flagpref':world.flagpref})
     psform = PersonalShipPicForm(world.flagshiptype, initial={'pspic':world.flagshippicture})
-
+    passchangeform = passchange()
+    if world.preferences.donor:
+        donorurl = donorurlform(initial={'url': world.preferences.donorurl.url})
+    else:
+        donorurl = donorurlform()
+    world = World.objects.get(user=request.user)
     return render(request, 'settings.html', {'world': world, 'message': message,'flagform':flagform, 'avatarform':avatarform, 'commform':commform,
-        'bgform':bgform, 'policyform':policyform, 'shipform':shipform, 'flagdisplayform':flagdisplayform, 'psform':psform,'test':str(world.backgroundpref)})
+        'bgform':bgform, 'passchangeform': passchangeform, 'donorurlform': donorurl, 'policyform':policyform, 'flagdisplayform':flagdisplayform, 'psform':psform,'test':str(world.backgroundpref)})
 
 
 # world_news is in news.py
-
-
-@login_required
-@world_required
-def tradecentre(request, world):
-    'Display and admin trade agreements here.'
-
-    message = None
-
-    ownlist = utilities.getownlist(world)
-
-    if request.method == 'POST':
-        form = request.POST
-
-        if "delete" in form:      # deletes by checkbox
-            listitems = request.POST.getlist('notificationitems')
-            for i in listitems:
-                try:
-                    item = AgreementLog.objects.get(pk=i)
-                except ObjectDoesNotExist:
-                    pass
-                else:
-                    if item.owner == world:
-                        item.delete()
-
-        if "deleteall" in form:
-            AgreementLog.objects.filter(owner=world).delete()
-
-        if "reorder" in form:
-            listorders = request.POST.getlist('agreementorders')
-            for index, value in enumerate(listorders):
-                if value.lower() == 'last':
-                    value = 0
-                if not utilities.checkno(value, True):
-                    message = 'Input numbers, or \'last\'.'
-                else:
-                    ownlist[index].order = value
-                    ownlist[index].save(update_fields=['order'])
-
-    maximum = 0
-    lol = [] # list of lists
-
-    for restype in xrange(1, 13):
-        lol.append(list(Agreement.objects.filter(receiver=world, resource=restype)))
-
-    for reslist in lol:
-        if len(reslist) > maximum:
-            maximum = len(reslist)
-    if maximum > 12:
-        maximum = 12
-
-    totsurplus = world.resourceproduction - Agreement.objects.filter(sender=world).exclude(receiver=world).count()
-    addsurplus = totsurplus - maximum
-    if addsurplus < 0:
-        addsurplus = 0
-
-    if maximum == 0:
-        maximum = 1
-    maximum = range(maximum)
-
-    growth, geu = turnupdates.grotrade(world)
-
-    names = ['Salm.', 'Drones', 'Moss', 'Hfibres', 'Crystals', 'Arms', 'Conden.', 'Ch. Gas', 'Tet. Ore', 'Spiders', 'Holos', 'CPUs']
-
-    loglist = list(AgreementLog.objects.filter(owner=world).order_by('-datetime'))
-
-    ownlist = utilities.getownlist(world)
-
-    return render(request, 'tradecentre.html', {'lol':lol, 'maximum':maximum, 'names':names, 'loglist':loglist, 'addsurplus':addsurplus,
-        'econsys':world.econsystem, 'worldid':world.worldid, 'growth':growth, 'geu':geu, 'ownlist':ownlist, 'message':message,
-        'totsurplus':totsurplus})
 
 
 def galacticnews(request):
@@ -583,7 +744,7 @@ def galacticnews(request):
 
     message = None
     try:
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         displayform = None
         count = 0
@@ -650,13 +811,12 @@ def galacticnews(request):
     else:
         timeremaining = "%s %s" % (days, utilities.plural('day', days))
     counttext = ("You have no tickets." if count == 0 else "You have %s %s." % (count, utilities.plural('ticket', count)))
-
     stats = cache.get('statistics')
     if not stats:
-        totA = World.objects.filter(region='A').count()
-        totB = World.objects.filter(region='B').count()
-        totC = World.objects.filter(region='C').count()
-        totD = World.objects.filter(region='D').count()
+        totA = World.objects.filter(sector='amyntas').count()
+        totB = World.objects.filter(sector='bion').count()
+        totC = World.objects.filter(sector='cleon').count()
+        totD = World.objects.filter(sector='draco').count()
         totworlds = totA + totB + totC + totD
         totGDP = World.objects.aggregate(Sum('gdp'))['gdp__sum']
         totbudget = World.objects.aggregate(Sum('budget'))['budget__sum']
@@ -670,61 +830,17 @@ def galacticnews(request):
         tottritprod = World.objects.aggregate(Sum('tritaniumprod'))['tritaniumprod__sum']
         totadamprod = World.objects.aggregate(Sum('adamantiumprod'))['adamantiumprod__sum']
         totfreighters = World.objects.aggregate(Sum('freighters'))['freighters__sum']
+        totfreighters += fleet.objects.aggregate(Sum('freighters'))['freighters__sum']
         totshipyards = World.objects.aggregate(Sum('shipyards'))['shipyards__sum']
-        totfig = World.objects.aggregate(Sum('fighters_inA'))['fighters_inA__sum'] + \
-            World.objects.aggregate(Sum('fighters_inB'))['fighters_inB__sum'] + \
-            World.objects.aggregate(Sum('fighters_inC'))['fighters_inC__sum'] + \
-            World.objects.aggregate(Sum('fighters_inD'))['fighters_inD__sum'] + \
-            World.objects.aggregate(Sum('fighters_inS'))['fighters_inS__sum'] + \
-            World.objects.aggregate(Sum('fighters_inH'))['fighters_inH__sum']
-        totcor = World.objects.aggregate(Sum('corvette_inA'))['corvette_inA__sum'] + \
-            World.objects.aggregate(Sum('corvette_inB'))['corvette_inB__sum'] + \
-            World.objects.aggregate(Sum('corvette_inC'))['corvette_inC__sum'] + \
-            World.objects.aggregate(Sum('corvette_inD'))['corvette_inD__sum'] + \
-            World.objects.aggregate(Sum('corvette_inS'))['corvette_inS__sum'] + \
-            World.objects.aggregate(Sum('corvette_inH'))['corvette_inH__sum']
-        totlcr = World.objects.aggregate(Sum('light_cruiser_inA'))['light_cruiser_inA__sum'] + \
-            World.objects.aggregate(Sum('light_cruiser_inB'))['light_cruiser_inB__sum'] + \
-            World.objects.aggregate(Sum('light_cruiser_inC'))['light_cruiser_inC__sum'] + \
-            World.objects.aggregate(Sum('light_cruiser_inD'))['light_cruiser_inD__sum'] + \
-            World.objects.aggregate(Sum('light_cruiser_inS'))['light_cruiser_inS__sum'] + \
-            World.objects.aggregate(Sum('light_cruiser_inH'))['light_cruiser_inH__sum']
-        totdes = World.objects.aggregate(Sum('destroyer_inA'))['destroyer_inA__sum'] + \
-            World.objects.aggregate(Sum('destroyer_inB'))['destroyer_inB__sum'] + \
-            World.objects.aggregate(Sum('destroyer_inC'))['destroyer_inC__sum'] + \
-            World.objects.aggregate(Sum('destroyer_inD'))['destroyer_inD__sum'] + \
-            World.objects.aggregate(Sum('destroyer_inS'))['destroyer_inS__sum'] + \
-            World.objects.aggregate(Sum('destroyer_inH'))['destroyer_inH__sum']
-        totfri = World.objects.aggregate(Sum('frigate_inA'))['frigate_inA__sum'] + \
-            World.objects.aggregate(Sum('frigate_inB'))['frigate_inB__sum'] + \
-            World.objects.aggregate(Sum('frigate_inC'))['frigate_inC__sum'] + \
-            World.objects.aggregate(Sum('frigate_inD'))['frigate_inD__sum'] + \
-            World.objects.aggregate(Sum('frigate_inS'))['frigate_inS__sum'] + \
-            World.objects.aggregate(Sum('frigate_inH'))['frigate_inH__sum']
-        tothcr = World.objects.aggregate(Sum('heavy_cruiser_inA'))['heavy_cruiser_inA__sum'] + \
-            World.objects.aggregate(Sum('heavy_cruiser_inB'))['heavy_cruiser_inB__sum'] + \
-            World.objects.aggregate(Sum('heavy_cruiser_inC'))['heavy_cruiser_inC__sum'] + \
-            World.objects.aggregate(Sum('heavy_cruiser_inD'))['heavy_cruiser_inD__sum'] + \
-            World.objects.aggregate(Sum('heavy_cruiser_inS'))['heavy_cruiser_inS__sum'] + \
-            World.objects.aggregate(Sum('heavy_cruiser_inH'))['heavy_cruiser_inH__sum']
-        totbcr = World.objects.aggregate(Sum('battlecruiser_inA'))['battlecruiser_inA__sum'] + \
-            World.objects.aggregate(Sum('battlecruiser_inB'))['battlecruiser_inB__sum'] + \
-            World.objects.aggregate(Sum('battlecruiser_inC'))['battlecruiser_inC__sum'] + \
-            World.objects.aggregate(Sum('battlecruiser_inD'))['battlecruiser_inD__sum'] + \
-            World.objects.aggregate(Sum('battlecruiser_inS'))['battlecruiser_inS__sum'] + \
-            World.objects.aggregate(Sum('battlecruiser_inH'))['battlecruiser_inH__sum']
-        totbsh = World.objects.aggregate(Sum('battleship_inA'))['battleship_inA__sum'] + \
-            World.objects.aggregate(Sum('battleship_inB'))['battleship_inB__sum'] + \
-            World.objects.aggregate(Sum('battleship_inC'))['battleship_inC__sum'] + \
-            World.objects.aggregate(Sum('battleship_inD'))['battleship_inD__sum'] + \
-            World.objects.aggregate(Sum('battleship_inS'))['battleship_inS__sum'] + \
-            World.objects.aggregate(Sum('battleship_inH'))['battleship_inH__sum']
-        totdre = World.objects.aggregate(Sum('dreadnought_inA'))['dreadnought_inA__sum'] + \
-            World.objects.aggregate(Sum('dreadnought_inB'))['dreadnought_inB__sum'] + \
-            World.objects.aggregate(Sum('dreadnought_inC'))['dreadnought_inC__sum'] + \
-            World.objects.aggregate(Sum('dreadnought_inD'))['dreadnought_inD__sum'] + \
-            World.objects.aggregate(Sum('dreadnought_inS'))['dreadnought_inS__sum'] + \
-            World.objects.aggregate(Sum('dreadnought_inH'))['dreadnought_inH__sum']
+        totfig = fleet.objects.aggregate(Sum('fighters'))['fighters__sum']
+        totcor = fleet.objects.aggregate(Sum('corvettes'))['corvettes__sum']
+        totlcr = fleet.objects.aggregate(Sum('light_cruisers'))['light_cruisers__sum']
+        totdes = fleet.objects.aggregate(Sum('destroyers'))['destroyers__sum']
+        totfri = fleet.objects.aggregate(Sum('frigates'))['frigates__sum']
+        tothcr = fleet.objects.aggregate(Sum('heavy_cruisers'))['heavy_cruisers__sum']
+        totbcr = fleet.objects.aggregate(Sum('battlecruisers'))['battlecruisers__sum']
+        totbsh = fleet.objects.aggregate(Sum('battleships'))['battleships__sum']
+        totdre = fleet.objects.aggregate(Sum('dreadnoughts'))['dreadnoughts__sum']
         totwar = World.objects.aggregate(Sum('warpoints'))['warpoints__sum']
         totfree = World.objects.filter(econsystem=1).count()
         totmixed = World.objects.filter(econsystem=0).count()
@@ -753,12 +869,9 @@ def galacticnews(request):
             'totfiglvl':totfiglvl, 'totcorlvl':totcorlvl, 'totlcrlvl':totlcrlvl, 'totdeslvl':totdeslvl, 'totfrilvl':totfrilvl,
             'tothcrlvl':tothcrlvl, 'totbcrlvl':totbcrlvl, 'totbshlvl':totbshlvl, 'totdrelvl':totdrelvl}
         cache.set('statistics', stats, 60*30) # not calculating this on every page refresh
-
+    
     data = GlobalData.objects.get(pk=1)
     rumsoddium = data.rumsoddiumwars
-    winnerid = data.lotterywinnerid
-    winner = (None if winnerid == 0 else World.objects.get(worldid=winnerid))
-    prevprize = data.lotterywinneramount
 
     if len(rsowners) == 1:
         rsamount = 'This world has'
@@ -772,15 +885,15 @@ def galacticnews(request):
         rsamount = None
 
     return render(request, 'galactic_news.html', {'wars':wars, 'announcements':announcements, 'message':message, 'displayform':displayform,
-        'rsowners':rsowners, 'rumsoddium':rumsoddium, 'jackpot':jackpot, 'winner':winner, 'timeremaining':timeremaining, 'counttext':counttext,
-        'prevprize':prevprize, 'rsamount':rsamount, 'stats':stats})
+        'rsowners':rsowners, 'rumsoddium':rumsoddium, 'counttext':counttext,
+        'rsamount':rsamount, 'stats':stats})
 
 
 @login_required
 @world_required
-def tasks(request, world):
+def tasks(request):
     'View and revoke tasks here.'
-
+    world = request.user.world
     revoked = 0
 
     if request.method == 'POST':
@@ -835,8 +948,9 @@ def tasks(request, world):
 
 @login_required
 @world_required
-def communiques(request, world):
+def communiques(request):
     'View/delete comms here.'
+    world = request.user.world
 
     if request.method == 'POST':
         form = request.POST
@@ -856,9 +970,9 @@ def communiques(request, world):
             Comm.objects.filter(target=world).delete()
 
         if "deletebyworld" in form:
-            worldid = form["target"]
+            pk = form["target"]
             try:
-                target = World.objects.get(worldid=worldid)
+                target = World.objects.get(pk=pk)
             except ObjectDoesNotExist:
                 pass
             else:
@@ -885,8 +999,8 @@ def communiques(request, world):
                 commsdict[comm.sender].append(comm)
             except KeyError:
                 commsdict[comm.sender] = [comm]
-            if not comm.seen and comm.sender.world_name not in unreadlist:
-                unreadlist.append(comm.sender.world_name)
+            if not comm.seen and comm.sender.name not in unreadlist:
+                unreadlist.append(comm.sender.name)
         for name in commsdict:
             numberlist.append(len(commsdict[name]))
         if len(commslist) == 0:   # Displays 'no comms'
@@ -900,8 +1014,9 @@ def communiques(request, world):
 
 @login_required
 @world_required
-def sentcomms(request, world):
+def sentcomms(request):
     'View/delete sent comms here.'
+    world = request.user.world
 
     if request.method == 'POST':
         form = request.POST
@@ -917,9 +1032,9 @@ def sentcomms(request, world):
             SentComm.objects.filter(sender=world).delete()
 
         if "deletebyworld" in form:
-            worldid = form["target"]
+            pk = form["target"]
             try:
-                target = World.objects.get(worldid=worldid)
+                target = World.objects.get(pk=pk)
             except ObjectDoesNotExist:
                 pass
             else:
@@ -948,90 +1063,102 @@ def sentcomms(request, world):
 
 @login_required
 @world_required
-def newtrade(request, world):
+def newtrade(request):
     'Propose a new trade here.'
-
-    message = warprotection = indefwar = None
-
-    if world.wardefender.count() > 0:
-        indefwar = True
-
-    if world.gdp < 250:
-        return redirect('trades')
-
-    if request.method == 'POST':
-        form = NewTradeForm(world.millevel, request.POST)
-        if form.is_valid():
-            data = form.cleaned_data
-            resoffin = data['offer']
-            amountoffin = int(data['amountoff'])
-            resrecin = data['receive']
-            amountrecin = int(data['amountrec'])
-            amounttrades = int(data['amounttrades'])
-            amountcheck = utilities.tradeamount(world, resoffin, amountoffin*amounttrades)
-            shipsendcheck = utilities.tradeshiptech(world, resoffin)
-            shipreccheck = utilities.tradeshiptech(world, resrecin)
-            shippowercheck = utilities.tradeshippower(world, resoffin, amountoffin*amounttrades)
-            defwarcheck = utilities.shippowerdefwars(world, resoffin)
-            if (resoffin not in v.resources) or (resrecin not in v.resources):
-                message = 'Enter valid resources.'
-            elif amountoffin <= 0 or amountrecin <= 0 or amounttrades <= 0:
-                message = 'Enter positive numbers.'
-            elif resoffin == resrecin:
-                message = 'You cannot offer a trade with identical resources!'
-            elif amounttrades > 100:
-                message = 'You cannot have so many of that trade at once!'
-            elif amountcheck is not True:
-                message = amountcheck
-            elif shipsendcheck is not True:
-                message = shipsendcheck
-            elif shipreccheck is not True:
-                message = shipsendcheck
-            elif shippowercheck is not True:
-                message = shippowercheck
-            elif defwarcheck is not True:
-                message = defwarcheck
-            elif int(Trade.objects.filter(owner=world).count()) > 10:
-                message = 'You have too many trades on the market already!'
-            else:
-                if 11 <= resoffin <= 19:
-                    tempmsg = 'Trade posted.'
-                    if v.now() < world.warprotection:
-                        world.warprotection = v.now()
-                        world.noobprotect = False
-                        world.save(update_fields=['warprotection','noobprotect'])
-                        tempmsg += '<br>Your war protection is now over.'
-                    if indefwar:
-                        utilities.contentmentchange(world, -10)
-                        utilities.stabilitychange(world, -5)
-                        tempmsg += '<br>You have lost perception and stability.'
-                    world.tempmsg = tempmsg
-                    world.save(update_fields=['tempmsg'])
-
-                Trade.objects.create(owner=world, resoff=resoffin, amountoff=amountoffin, resrec=resrecin,
-                    amountrec=amountrecin, amounttrades=amounttrades)
-                return redirect('trades')
-    else:
-        form = NewTradeForm(world.millevel)
-
+    world = request.user.world
     if v.now() < world.warprotection:
         warprotection = True
+    cost = 5 * (world.econsystem + 3)
+    message = warprotection = indefwar = form = btnval = trade = None
+    tempmsg = ""
+    actions = {}
+    init = {
+    'offer_amount': 1,
+    'request_amount': 1,
+    'amount': 1,
+    }
+    if world.wardefender.count() > 0:
+        indefwar = True
+    if world.gdp < 250:
+        return redirect('trades')
+    if request.method == 'POST':
+        if 'newtrade' in request.POST: #different postans
+            if request.POST['newtrade'] == 'blueprint':
+                form = Blueprinttradeform(world, initial=init)
+            elif request.POST['newtrade'] == 'ship':
+                form = Shiptradeform(world, initial=init)
+            else:
+                form = Resourcetradeform(world, initial=init)
+            btnval = request.POST['newtrade']
 
-    if world.econsystem == 1:
-        cost = 10
-    elif world.econsystem == 0:
-        cost = 15
-    elif world.econsystem == -1:
-        cost = 20
+        elif 'ship' in request.POST:
+            form = Shiptradeform(world, request.POST)
+            if form.is_valid():
+                data = form.cleaned_data
+                shiptype = data['offer']
+                if data['fleet'].__dict__[shiptype] < data['amount']:
+                    message = "%s doesn't have enough %s!" % (data['fleet'].name, shiptype.replace('_', ' '))
+                else:
+                    trade = Trade.objects.create(owner=world, amount=data['amount'],
+                        offer=shiptype, offer_amount=data['amount'], offer_type='ship',
+                        fleet_source=data['fleet'], 
+                        request=data['request'], request_amount=data['request_amount'])
+                    if v.now() < world.warprotection:
+                        actions.update({
+                            'warprotection': {'action': 'set', 'amount': v.now()},
+                            'noobprotect': {'action': 'set', 'amount': False}
+                        })
+                        tempmsg += '<br>Your war protection is now over.'
 
-    return render(request, 'newtrade.html', {'form': form, 'cost':cost, 'message':message, 'warprotection':warprotection, 'indefwar':indefwar})
+        elif 'blueprint' in request.POST:
+            form = Blueprinttradeform(world, request.POST)
+            if form.is_valid():
+                data = form.cleaned_data
+                bptype = Blueprint_license.objects.get(pk=data['offer']).model
+                if data['amount'] > len(world.blueprints.all().filter(model=bptype)):
+                    message = "You do not have that many blueprints avaliable!"
+                else:
+                    trade = Trade.objects.create(owner=world, amount=data['amount'],
+                        offer="blueprint", offer_amount=data['offer_amount'], offer_type="blueprint",
+                        request=data['request'], request_amount=data['request_amount'],
+                        blueprint_type=bptype, blueprint_pk=data['offer'])
+
+        elif 'resource' in request.POST:
+            form = Resourcetradeform(world, request.POST)
+            if form.is_valid():
+                data = form.cleaned_data
+                resource = data['offer']
+                #gonna need to move this type of verification to form level
+                if data['amount'] * data['offer_amount'] > world.__dict__[resource]:
+                    if resource == "budget":
+                        message = "You don't have that many GEU!"
+                    else:
+                        message = "You don't have that much %s!" % resource
+                elif data['offer'] == data['request']:
+                    message = "You need to trade different resources"
+                else:
+                    trade = Trade.objects.create(owner=world, amount=data['amount'],
+                        offer=data['offer'], offer_amount=data['offer_amount'],
+                        request=data['request'], request_amount=data['request_amount'])
+
+        elif 'None' in request.POST:
+            return redirect('trades')
+        if trade != None:
+            tempmsg = 'Trade posted.' + tempmsg
+            actions.update({'tempmsg': {'action': 'set', 'amount': tempmsg}})
+            utilities.atomic_world(world.pk, actions)
+            return redirect('trades')
+    else:
+        return redirect('trades')
+    return render(request, 'newtrade.html', {'form': form, 'btnval': btnval, 'cost':cost, 'message':message, 'warprotection':warprotection, 'indefwar':indefwar})
 
 
 @login_required
 @world_required
-def trades(request, world):
+def trades(request):
     'Accept/delete/modify a trade here.'
-
+    world = request.user.world
+    blueprints = (True if Blueprint_license.objects.filter(owner=world).count() > 0 else False)
     warprotection = indefwar = None
     endprotect = ''
     message = world.tempmsg
@@ -1041,268 +1168,244 @@ def trades(request, world):
 
     if request.method == 'POST':
         form = request.POST
-
-        if "newtrade" in form:
-            if world.gdp < 250:
-                message = 'Your economy is too weak for trade! You must have a GDP of 250 million to participate in the galactic market.'
-            else:
-                return redirect('newtrade')
-
+        message = None
+        actions = {}
         if "delete" in form:
-            tradeid = request.POST.get('tradeid')
             try:
-                trade = Trade.objects.get(pk=int(tradeid))
+                world.trades.all().get(pk=request.POST['delete']).delete()
             except ObjectDoesNotExist:
-                pass
-            else:
-                if trade.owner == world:
-                    trade.delete()
+                message = "Trade does not exist!"
 
         if "modify" in form:
-            tradeid = request.POST.get('tradeid')
-            tradeno = request.POST.get('tradeno')
             try:
-                trade = Trade.objects.get(pk=int(tradeid))
-            except ObjectDoesNotExist:
-                pass
+                trade = world.trades.all().get(pk=request.POST['modify'])
+            except:
+                message = "That trade does not exist!"
             else:
-                if trade.owner == world:
-                    if not utilities.checkno(tradeno):
-                        message = 'Enter a positive number.'
-                    else:
-                        tradeno = int(tradeno)
-                        amountcheck = utilities.tradeamount(world, trade.resoff, trade.amountoff*tradeno)
-                        shippowercheck = utilities.tradeshippower(world, trade.resoff, trade.amountoff*tradeno)
-                        if amountcheck != True:
-                            message = amountcheck
-                        elif shippowercheck != True:
-                            message = shippowercheck
-                        elif tradeno > 100:
-                            message = 'You cannot have so many of a trade at once!'
-                        else:
-                            trade.amounttrades = tradeno
-                            trade.save()
-                            message = 'Trade modified.'
-                            if 11 <= trade.resoff <= 19:
-                                if v.now() < world.warprotection:
-                                    world.warprotection = v.now()
-                                    world.noobprotect = False
-                                    world.save(update_fields=['warprotection','noobprotect'])
-                                    message += '<br>Your war protection is now over.'
-                                if indefwar:
-                                    utilities.contentmentchange(world, -10)
-                                    utilities.stabilitychange(world, -5)
-                                    message += '<br>You have lost perception and stability.'
+                form = tradeamountform(trade, request.POST)
+                if form.is_valid():
+                    trade.amount = form.cleaned_data['tradeno']
+                    trade.save()
+                    message = "Trade modified."
+                    if trade.offer_type == 'ship':
+                        if v.now() < world.warprotection:
+                            actions.update({
+                                'warprotection': {'action': 'set', 'amount': v.now()},
+                                'noobprotect': {'action': 'set', 'amount': False},
+                                })
+                            message += '<br>Your war protection is now over.'
+                        if world.wardefender.count() > 0:
+                            stabchange = utilities.attrchange(world.stability, -5)
+                            contchange = utilities.attrchange(world.contentment, -10)
+                            actions.update({
+                                'stability': {'action': 'add', 'amount': stabchange},
+                                'contentment': {'action': 'add', 'amount': contchange},
+                                })
+                            message += '<br>You have lost perception and stability.'
 
-        if "accepttrade" in form:
-            tradeid = request.POST.get('tradeid')
-            tradeno = request.POST.get('tradeno')
+        if "accept" in form:
             try:
-                trade = Trade.objects.get(pk=int(tradeid))
+                trade = Trade.objects.all().exclude(owner=world).get(pk=request.POST['accept'])
             except ObjectDoesNotExist:
                 message = 'This trade is no longer available!'
             else:
-                if not utilities.checkno(tradeno):
-                    message = 'Enter a positive number.'
-                elif trade.owner == world:
-                    message = 'You cannot accept your own trade!'
-                else:
-                    tradeno = int(tradeno)
-                    amountrec = trade.amountrec*tradeno
-                    amountoff = trade.amountoff*tradeno
-                    amountcheck = utilities.tradeamount(world, trade.resrec, amountrec)
-                    otheramountcheck = utilities.tradeamount(trade.owner, trade.resoff, amountoff)
-                    othertradecost = utilities.tradecost(trade.owner, tradeno)
-                    shipsendcheck = utilities.tradeshiptech(world, trade.resrec)
-                    shipreccheck = utilities.tradeshiptech(world, trade.resoff)
-                    shippowercheck = utilities.tradeshippower(world, trade.resrec, amountrec)
-                    count, countcheck = utilities.freightertradecheck(world, trade.resrec, amountrec)
-                    othercount, othercountcheck = utilities.freightertradecheck(trade.owner, trade.resoff, amountoff)
-                    offername = utilities.resname(trade.resoff, 2, lower=True)
-
-                    if tradeno > trade.amounttrades:
-                        message = 'There is not enough of that trade remaining!'
-                    elif amountcheck != True:
-                        message = amountcheck
-                    elif shipreccheck != True:
-                        message = shipreccheck
-                    elif shipsendcheck != True:
-                        message = shipsendcheck
-                    elif shippowercheck != True:
-                        message = shippowercheck
-                    elif countcheck != True:
-                        message = countcheck
-                    elif otheramountcheck != True or othertradecost != True:
+                form = Accepttradeform(trade, request.POST)
+                if form.is_valid():
+                    tradeamount = form.cleaned_data['amount']
+                    poster = trade.owner
+                    posteractions = {}
+                    total_out = trade.request_amount * tradeamount
+                    total_in = trade.offer_amount * tradeamount
+                    cost = (5 * (trade.owner.econsystem + 3)) * tradeamount
+                    if trade.owner.budget < cost * tradeamount:
+                        proceed = False
+                        posteractions.update({'budget': {'action': 'subtract', 'amount': D(trade.owner.budget / 5)}})
+                        reason = 'you did not have enough GEU to pay the upfront cost'
                         message = 'The world offering this trade cannot uphold it! It has been fined 20%% of its budget.'
-                        trade.owner.budget = F('budget') - trade.owner.budget/5
-                        trade.owner.save(update_fields=['budget'])
-
-                        reason = ('you did not have enough GEU to pay the upfront cost' if othertradecost != True else offername)
                         htmldata = news.tradefail(reason)
                         NewsItem.objects.create(target=trade.owner, content=htmldata)
                         trade.delete()
-
-                    elif othercountcheck != True:
-                        message = 'The world offering this trade does not have the freighters to transport it! It has been fined 20%% of its budget.'
-                        trade.owner.budget = F('budget') - trade.owner.budget/5
-                        trade.owner.save(update_fields=['budget'])
-
-                        htmldata = news.tradefailfreighters(offername)
-                        NewsItem.objects.create(target=trade.owner, content=htmldata)
-                        trade.delete()
-
                     else:
-                        if trade.resoff == 0:
-                            trainingchange = 0
-                            utilities.resourcecompletion(world, trade.resoff, amountoff, trainingchange)
-                            utilities.spyintercept(world, trade.owner, 'GEU', amountoff)
+                        proceed = True #instead of ridiculously nested conditionals
+                    if trade.offer_type == 'ship':
+                        if not trade.owner.fleets.all().filter(controller=trade.owner, pk=trade.fleet_source.pk).exists():
+                            proceed = False
+                            trade.owner.trades.all().filter(pk=trade.fleet_source).delete()
+                            message = "Unfortunately, the fleet sourcing the offered ships no longer exists."
+                            content = "One of the fleets that contained ships put for sale in the market is no longer available.\
+                                <br> All associated trades have been deleted."
+                            NewItem.objects.create(target=trade.owner, content=content)
 
-                            ResourceLog.objects.create(owner=world, target=trade.owner, res=trade.resoff, amount=amountoff, sent=False, trade=True)
 
-                        elif 11 <= trade.resoff <= 19:
-                            delay = (4 if world.region == trade.owner.region else 8)
-                            outcometime = v.now() + time.timedelta(hours=delay)
-                            if 'sendhome' in world.shipsortprefs:
-                                trainingchange = utilities.trainingchangecalc(trade.owner, trade.owner.region, int(trade.resoff)-10, amountoff)
+                    if trade.offer_type == 'resource' and proceed:
+                        if trade.offer == 'budget':
+                            required_freighters = utilities.freightercount(trade.request, trade.request_amount * tradeamount)
+                        else:
+                            required_freighters = utilities.freightercount(trade.offer, trade.offer_amount * tradeamount)
+                        delay = (2 if world.sector == trade.owner.sector else 4)
+                        outcometime = v.now() + time.timedelta(minutes=delay)
+                        #first block handles money in resources out
+                        if trade.offer == 'budget':
+                            if world.__dict__[trade.request] < total_out:
+                                message = "We do not have enough %s! We're %s short." % (trade.request, total_out - world.__dict__[trade.request])
+                            elif world.freighters < required_freighters:
+                                message = "We do not have enough freighters! We need %s more." % (int(required_freighters) - int(world.freighters))
+                            elif trade.owner.budget < total_in + cost:
+                                message = 'The world offering this trade cannot uphold it! It has been fined 20%% of its budget.'
+                                posteractions.update({'budget': {'action': 'subtract', 'amount': D(trade.owner.budget / 5)}})
+                                reason = 'you did not have enough GEU to pay the upfront cost'
+                                htmldata = news.tradefail(reason)
+                                NewsItem.objects.create(target=trade.owner, content=htmldata)
+                                trade.delete()
                             else:
-                                trainingchange = utilities.trainingchangecalc(trade.owner, 'S', int(trade.resoff)-10, amountoff)
+                                #subtract resource and freighters and exchange budget
+                                actions.update({
+                                    'budget': {'action': 'add', 'amount': total_in},
+                                    'freighters': {'action': 'subtract', 'amount': required_freighters},
+                                    'freightersinuse': {'action': 'add', 'amount': required_freighters},
+                                    trade.request: {'action': 'subtract', 'amount': total_out},
+                                    })
+                                posteractions = {'budget': {'action': 'subtract', 'amount': total_in}}
+                                utilities.atomic_world(poster.pk, posteractions)
+                                utilities.atomic_world(world.pk, actions)
+                                #now prepare the transfer
+                                actions = {
+                                    'freighters': {'action': 'add', 'amount': required_freighters},
+                                    'freightersinuse': {'action': 'subtract', 'amount': required_freighters},
+                                }
+                                posteractions = {trade.request: {'action': 'add', 'amount': total_out}}
+                                taskdetails = taskdata.tradeaccepterarrival(world, trade.displayrec, total_in)
+                                task = Task.objects.create(target=poster, content=taskdetails, datetime=outcometime)
+                                newtask.tradecomplete.apply_async(args=(world.pk, trade.owner.pk, 
+                                        task.pk, trade.request, total_out, required_freighters), eta=outcometime)
+                                log = ResourceLog.objects.create(owner=world, target=poster, trade=True)
+                                Logresource.objects.create(log=log, resource='GEU', amount=total_in)
+                                log2 = ResourceLog.objects.create(owner=poster, target=world, sent=True, trade=True)
+                                Logresource.objects.create(log=log2, resource='GEU', amount=total_in)
+                                Logresource.objects.create(log=log2, resource=trade.offer, amount=total_in)
+                                trade.amount -= tradeamount
 
-                            taskdetails = taskdata.tradeaccepterarrival(trade.owner, trade.displayoff, amountoff)
-                            task = Task(target=world, content=taskdetails, datetime=outcometime)
-                            task.save()
-
-                            newtask.tradecomplete.apply_async(args=(trade.owner.worldid, world.worldid, task.pk, trade.resoff, amountoff,
-                                trainingchange, 0), eta=outcometime)
-
-                        else:
-                            delay = (1 if world.region == trade.owner.region else 2)
-                            outcometime = v.now() + time.timedelta(hours=delay)
-                            trainingchange = 0
-
-                            trade.owner.freightersinuse = F('freightersinuse') + othercount
-                            trade.owner.save(update_fields=['freightersinuse'])
-
-                            taskdetails = taskdata.tradeaccepterarrival(trade.owner, trade.displayoff, amountoff)
-                            task = Task(target=world, content=taskdetails, datetime=outcometime)
-                            task.save()
-
-                            newtask.tradecomplete.apply_async(args=(trade.owner.worldid, world.worldid, task.pk, trade.resoff, amountoff,
-                                trainingchange, othercount), eta=outcometime)
-
-                        utilities.resourcecompletion(trade.owner, trade.resoff, -amountoff, -trainingchange)
-                        utilities.freightermove(trade.owner, trade.owner.region, -othercount)
-                        utilities.spyinterceptsend(trade.owner, world, trade.displayoff, amountoff)
-                        ResourceLog.objects.create(owner=trade.owner, target=world, res=trade.resoff, amount=amountoff, sent=True, trade=True)
-
-                        ##
-                        if trade.resrec == 0:
-                            trainingchange = 0
-
-                            htmldata = news.tradeacceptmoney(world, trade.displayoff, amountoff, trade.displayrec, amountrec)
+                        elif trade.owner.freighters < required_freighters:
+                            message = 'The world offering this trade does not have the freighters to transport it! It has been fined 20%% of its budget.'
+                            posteractions.update({'budget': {'action': 'subtract', 'amount': D(trade.owner.budget / 5)}})
+                            htmldata = news.tradefailfreighters(trade.offer)
                             NewsItem.objects.create(target=trade.owner, content=htmldata)
-
-                            utilities.resourcecompletion(trade.owner, trade.resrec, amountrec, trainingchange)
-                            utilities.spyintercept(trade.owner, world, 'GEU', amountrec)
-
-                            ResourceLog.objects.create(owner=trade.owner, target=world, res=trade.resrec, amount=amountrec, sent=False, trade=True)
-
-                        elif 11 <= trade.resrec <= 19:
-                            delay = (4 if world.region == trade.owner.region else 8)
-                            if v.now() < world.warprotection:
-                                world.warprotection = v.now()
-                                world.save()
-                                endprotect = ' Your war protection is now over. Other worlds may attack you.'
-                            outcometime = v.now() + time.timedelta(hours=delay)
-                            if 'sendhome' in world.shipsortprefs:
-                                trainingchange = utilities.trainingchangecalc(world, world.region, int(trade.resrec)-10, amountrec)
-                            else:
-                                trainingchange = utilities.trainingchangecalc(world, 'S', int(trade.resrec)-10, amountrec)
-
-                            taskdetails = taskdata.tradeownerarrival(world, trade.displayrec, amountrec)
-                            task = Task(target=trade.owner, content=taskdetails, datetime=outcometime)
-                            task.save()
-
-                            htmldata = news.tradeaccept(world, trade.displayoff, amountoff, trade.displayrec, amountrec)
-                            NewsItem.objects.create(target=trade.owner, content=htmldata)
-
-                            newtask.tradecomplete.apply_async(args=(world.worldid, trade.owner.worldid, task.pk, trade.resrec, amountrec,
-                                trainingchange, 0), eta=outcometime)
-
-                        else:
-                            delay = (1 if world.region == trade.owner.region else 2)
-                            outcometime = v.now() + time.timedelta(hours=delay)
-                            trainingchange = 0
-
-                            world.freightersinuse = F('freightersinuse') + count
-                            world.save(update_fields=['freightersinuse'])
-
-                            taskdetails = taskdata.tradeownerarrival(world, trade.displayrec, amountrec)
-                            task = Task(target=trade.owner, content=taskdetails, datetime=outcometime)
-                            task.save()
-
-                            htmldata = news.tradeaccept(world, trade.displayoff, amountoff, trade.displayrec, amountrec)
-                            NewsItem.objects.create(target=trade.owner, content=htmldata)
-
-                            newtask.tradecomplete.apply_async(args=(world.worldid, trade.owner.worldid, task.pk, trade.resrec, amountrec,
-                                trainingchange, count), eta=outcometime)
-
-                        utilities.resourcecompletion(world, trade.resrec, -amountrec, -trainingchange)
-                        utilities.freightermove(world, world.region, -count)
-                        utilities.spyinterceptsend(world, trade.owner, trade.displayrec, amountrec)
-                        ResourceLog.objects.create(owner=world, target=trade.owner, res=trade.resrec, amount=amountrec, sent=True, trade=True)
-
-                        ##
-                        tradelogger.info('---')
-                        tradelogger.info('%s (id=%s) accepted trade with %s (id=%s),',
-                            world.world_name, world.worldid, trade.owner.world_name, trade.owner.worldid)
-                        tradelogger.info('sending %s %s and receiving %s %s',
-                            amountrec, trade.displayrec, amountoff, trade.displayoff)
-
-                        if tradeno < trade.amounttrades:
-                            trade.amounttrades = F('amounttrades') - tradeno
-                            trade.save(update_fields=['amounttrades'])
-                        else:
                             trade.delete()
+                            #here we handle money out resources in
+                        else:
+                            if world.__dict__[trade.request] < total_out:
+                                rtype = ('GEU' if trade.request == 'budget' else trade.request)
+                                message = "We do not have enough %s to accept this offer! We need %s more." % (rtype, total_out - world.__dict__[trade.request])
+                            else:
+                                actions.update({
+                                    'budget': {'action': 'subtract', 'amount': total_out}
+                                    })
+                                posteractions.update({
+                                    'budget': {'action': 'add', 'amount': total_out-cost},
+                                    'freighters': {'action': 'subtract', 'amount': required_freighters},
+                                    'freightersinuse': {'action': 'add', 'amount': required_freighters},
+                                    trade.offer: {'action': 'subtract', 'amount': total_in},
+                                    })
+                                print poster.freighters, poster.duranium
+                                print world.freighters, world.duranium
+                                print actions
+                                print required_freighters, total_out
+                                utilities.atomic_world(poster.pk, posteractions)
+                                utilities.atomic_world(world.pk, actions)
+                                actions = {trade.offer: {'action': 'add', 'amount': total_in}}
+                                posteractions = {
+                                    'freighters': {'action': 'add', 'amount': required_freighters},
+                                    'freightersinuse': {'action': 'subtract', 'amount': required_freighters},
+                                    }
+                                taskdetails = taskdata.tradeaccepterarrival(poster, trade.displayoff, total_in)
+                                task = Task.objects.create(target=world, content=taskdetails, datetime=outcometime)
+                                newtask.tradecomplete.apply_async(args=(trade.owner.pk, world.pk, 
+                                    task.pk, trade.offer, total_in, required_freighters), eta=outcometime)
+                                log = ResourceLog.objects.create(owner=poster, target=world, trade=True)
+                                Logresource.objects.create(log=log, resource='GEU', amount=total_out)
+                                log2 = ResourceLog.objects.create(owner=poster, target=world, trade=True)
+                                Logresource.objects.create(log=log2, resource=trade.offer, amount=total_in)
+                                log3 = ResourceLog.objects.create(owner=world, target=poster, sent=True, trade=True)
+                                Logresource.objects.create(log=log3, resource='GEU', amount=total_out)
+                                trade.amount -= tradeamount
 
+                    elif trade.offer_type == "ship" and proceed:
+                        ship = trade.offer
+                        pship = ship.replace('_', ' ')
+                        delay = (4 if world.sector == trade.owner.sector else 8)
+                        if trade.offer == "freighters":
+                            delay /= 2
+                        outcometime = v.now() + time.timedelta(minutes=delay)
+                        if trade.fleet_source.__dict__[ship] < total_in:
+                            message = "Seller doesn't have enough ships and has been fined."
+                            posteractions.update({'budget': {'action': 'subtract', 'amount': D(trade.owner.budget / 5)}})
+                            trade.owner.trades.all().filter(fleet_source=trade.fleet_source).delete()
+                        elif world.__dict__[trade.request] < total_out:
+                            resource = ('GEU' if trade.request == 'budget' else trade.request)
+                            message = "You do not have enough %s! You need %s more." % (resource, total_out - world.__dict__[ship])
+                        else:
+                            incoming = fleet()
+                            incoming.__dict__[ship] = total_in
+                            incoming.training = incoming.maxtraining() * trade.fleet_source.ratio()
+                            tfactions = {'set': {
+                            'training': trade.fleet_source.training - incoming.training,
+                            ship: trade.fleet_source.__dict__[ship] - incoming.__dict__[ship],
+                            }}
+                            utilities.atomic_fleet(trade.fleet_source.pk, tfactions)
+                            shipsin = "%s %s" % (total_in, ship)
+                            taskdetails = taskdata.tradeaccepterarrival(poster, trade.displayoff, total_in)
+                            task = Task.objects.create(target=world, content=taskdetails, datetime=outcometime)
+                            newtask.shiptradecomplete.apply_async(args=(trade.owner.pk, world.pk, task.pk, shipsin, incoming.training), eta=outcometime)
+                            log = ResourceLog.objects.create(owner=poster, target=world, trade=True)
+                            Logresource.objects.create(log=log, resource='GEU', amount=total_out)
+                            log2 = ResourceLog.objects.create(owner=poster, target=world, sent=True, trade=True)
+                            Logresource.objects.create(log=log2, resource=pship, amount=total_in)
+                            log3 = ResourceLog.objects.create(owner=world, target=poster, sent=True, trade=True)
+                            Logresource.objects.create(log=log3, resource='GEU', amount=total_out)
+                            trade.amount -= tradeamount
+
+                        ##
+                    tradelogger.info('---')
+                    tradelogger.info('%s (id=%s) accepted trade with %s (id=%s),',
+                        world.name, world.pk, trade.owner.name, trade.owner.pk)
+                    tradelogger.info('sending %s %s and receiving %s %s',
+                        total_out, trade.displayrec, total_in, trade.displayoff)
+
+
+                    if trade.amount <= 0:
+                        trade.delete()
+                    else:
+                        trade.save()
+                    if message == None:
                         message = 'Trade accepted!' + endprotect
-
-    owntradeslist = list(Trade.objects.filter(owner=world).order_by('-datetime'))
-
-    tradeslist = [list(Trade.objects.filter(resoff=0).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=1).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=2).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=3).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=4).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=11).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=12).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=13).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=14).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=15).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=16).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=17).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=18).exclude(owner=world).order_by('-datetime')),
-                  list(Trade.objects.filter(resoff=19).exclude(owner=world).order_by('-datetime'))]
-
-
-    tradenames = ['Currency', 'Warpfuel', 'Duranium', 'Tritanium', 'Adamantium', 'Fighters', 'Corvettes', 'Light Cruisers', 'Destroyers',
-                  'Frigates', 'Heavy Cruisers', 'Battlecruisers', 'Battleships', 'Dreadnoughts']
-
-    tot = 0
-    for listindex, tradelist in enumerate(tradeslist):
-        if not tradelist:
-            tradeslist[listindex] = None
-            tot += 1
-        else:
-            for index, trade in enumerate(tradelist):
-                if trade.resoff == 0:
-                    delay = None
-                elif 11 <= trade.resoff <= 19:
-                    delay = (4 if world.region == trade.owner.region else 8)
                 else:
-                    delay = (1 if world.region == trade.owner.region else 2)
-                tradeslist[listindex][index] = {'info':trade,'delay':delay}
+                    message = "error"
+        world.refresh_from_db() #if post then we need fresh data
 
-    notrades = (True if tot == len(tradeslist) else False)
+    trades = Trade.objects.all()
+    len(trades) #single query
+    owntradeslist = trades.filter(owner=world).order_by('-posted')
+    tradeslist = trades.exclude(owner=world)
+    names = v.resources + v.shipindices
+    tradenames = v.tradenames
+    renderlist = []
+    for tradename, tradetype in zip(tradenames, names):
+        trades = tradeslist.filter(offer=tradetype).order_by('-posted')
+        if trades.count() == 0:
+            continue
+        tmprender = []
+        for trade in trades:
+            if trade.offer == 'budget':
+                delay = 0
+            elif trade.offer in v.shipindices:
+                delay = (4 if world.sector == trade.owner.sector else 8)
+            else:
+                delay = (1 if world.sector == trade.owner.sector else 2)
+            init = {'amount': 1}
+            tmprender.append({'trade': trade, 'delay': delay, 'tradeform': Accepttradeform(trade, initial=init)})
+        renderlist.append({'name': tradename, 'trades': tmprender})
+
+    notrades = (True if len(tradeslist) == 0 else False)
 
     warprotection = (True if v.now() < world.warprotection else False)
 
@@ -1311,11 +1414,8 @@ def trades(request, world):
 
     indefwar = (True if world.wardefender.count() else False)
 
-    world = World.objects.get(pk=world.pk)
-    reslist = [world.budget, world.warpfuel, world.duranium, world.tritanium, world.adamantium]
-
     return render(request, 'trades.html', {'owntrades':owntradeslist, 'message':message, 'warprotection':warprotection, 'notrades': notrades,
-        'reslist':reslist, 'indefwar':indefwar, 'tradeslist':tradeslist, 'tradenames':tradenames})
+        'indefwar':indefwar, 'world': world, 'blueprints': blueprints, 'tradeslist':renderlist, 'tradenames':tradenames})
 
 
 def stats(request):
@@ -1328,13 +1428,13 @@ def statspage(request, page):
     results = showform = world = None
     flagpref = 'new'
     displayno = 20
-
+    logged_in = request.user.is_anonymous()
     try:
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         showform = None
         sortform = GalaxySortForm()
-        sort = 'worldid'
+        sort = 'pk'
     else:
         if request.method == 'POST':
             form = request.POST
@@ -1357,7 +1457,7 @@ def statspage(request, page):
         form = request.POST
         if "search" in form:
             searchdata = form['searchdata']
-            results = World.objects.filter(world_name__icontains=searchdata).exclude(pk=0)
+            results = World.objects.filter(name__icontains=searchdata).exclude(pk=0)
             if len(results) == 0:
                 results = None
 
@@ -1370,10 +1470,10 @@ def statspage(request, page):
     start = ((int(page)-1)*displayno)
     displayworlds = [i for i in worlds[start:start+displayno]]
 
-    if World.objects.filter(worldid=request.user.id).exists():
-        sortform = GalaxySortForm(initial={'sortby':world.galaxysort})
-    else:
-        sortform = GalaxySortForm()
+    sortform = GalaxySortForm()
+    if not logged_in:
+        if World.objects.filter(user=request.user).exists():
+            sortform = GalaxySortForm(initial={'sortby':world.galaxysort})
 
     if flagpref == 'old':
         flagpref = None
@@ -1422,7 +1522,7 @@ def alliances_ind(request, allid):
         return render(request, 'notfound.html', {'item': 'alliance'})
 
     try:                            # allows for display to non-user
-        world = World.objects.get(worldid=request.user.id)
+        world = World.objects.get(user=request.user)
     except:
         world = None
     else:
@@ -1590,7 +1690,7 @@ def alliances_ind(request, allid):
             if world.leader == False and world.officer == False:
                 leave = True
 
-        world = World.objects.get(pk=world.pk)
+        world.refresh_from_db()
 
     alliance, alliancemembs, officers, leader = utilities.alliancedata(request, allid)
 
@@ -1601,9 +1701,9 @@ def alliances_ind(request, allid):
 
 @login_required
 @world_required
-def alliances_logs(request, allid, world):
+def alliances_logs(request, allid):
     'Displays alliance logs. Only leaders and officers allowed.'
-
+    world = request.user.world
     alliance = Alliance.objects.get(allianceid=allid)
 
     if not (world.alliance == alliance and (world.officer or world.leader)):
@@ -1615,8 +1715,9 @@ def alliances_logs(request, allid, world):
 
 @login_required
 @world_required
-def alliances_memberlogs(request, allid, world):
+def alliances_memberlogs(request, allid):
     'Displays member logs. Only leaders and officers allowed.'
+    world = request.user.world
 
     alliance = Alliance.objects.get(allianceid=allid)
 
@@ -1629,9 +1730,9 @@ def alliances_memberlogs(request, allid, world):
 
 @login_required
 @world_required
-def alliances_admin(request, allid, world):
+def alliances_admin(request, allid):
     'Admin an alliance here. Only leaders and officers allowed, with different functions.'
-
+    world = request.user.world
     alliance = Alliance.objects.get(allianceid=allid)
     leader = None
     message = None
@@ -1662,7 +1763,7 @@ def alliances_admin(request, allid, world):
             if "setsuccessor" in form:
                 name = form['successorname']
                 try:
-                    successor = World.objects.get(world_name=name)
+                    successor = World.objects.get(name=name)
                 except:
                     message = 'No such world exists!'
                 else:
@@ -1759,7 +1860,7 @@ def alliances_admin(request, allid, world):
             if "invite" in form:
                 name = form['name']
                 try:
-                    invitee = World.objects.get(world_name=name)
+                    invitee = World.objects.get(name=name)
                 except:
                     message = 'No such world exists!'
                 else:
@@ -1793,8 +1894,9 @@ def alliances_admin(request, allid, world):
 
 @login_required
 @world_required
-def alliances_stats(request, allid, world):
+def alliances_stats(request, allid):
     'Displays stats of an alliance.'
+    world = request.user.world
 
     alliance = Alliance.objects.get(allianceid=allid)
     leader = officer = member = None
@@ -1808,10 +1910,10 @@ def alliances_stats(request, allid, world):
         member = True
 
     totworlds = alliance.allmember.all().count()
-    totA = alliance.allmember.all().filter(region='A').count()
-    totB = alliance.allmember.all().filter(region='B').count()
-    totC = alliance.allmember.all().filter(region='C').count()
-    totD = alliance.allmember.all().filter(region='D').count()
+    totA = alliance.allmember.all().filter(sector='amyntas').count()
+    totB = alliance.allmember.all().filter(sector='bion').count()
+    totC = alliance.allmember.all().filter(sector='cleon').count()
+    totD = alliance.allmember.all().filter(sector='draco').count()
     totGDP = alliance.allmember.all().aggregate(Sum('gdp'))['gdp__sum']
     totbudget = alliance.allmember.all().aggregate(Sum('budget'))['budget__sum']
     totgrowth = alliance.allmember.all().aggregate(Sum('growth'))['growth__sum']
@@ -1823,63 +1925,18 @@ def alliances_stats(request, allid, world):
     totdurprod = alliance.allmember.all().aggregate(Sum('duraniumprod'))['duraniumprod__sum']
     tottritprod = alliance.allmember.all().aggregate(Sum('tritaniumprod'))['tritaniumprod__sum']
     totadamprod = alliance.allmember.all().aggregate(Sum('adamantiumprod'))['adamantiumprod__sum']
-    totfreighters = alliance.allmember.all().aggregate(Sum('freighters'))['freighters__sum']
+    totfreighters =fleet.objects.filter(world__alliance=alliance).aggregate(Sum('freighters'))['freighters__sum'] 
     totshipyards = alliance.allmember.all().aggregate(Sum('shipyards'))['shipyards__sum']
-    totfig = alliance.allmember.all().aggregate(Sum('fighters_inA'))['fighters_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('fighters_inB'))['fighters_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('fighters_inC'))['fighters_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('fighters_inD'))['fighters_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('fighters_inS'))['fighters_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('fighters_inH'))['fighters_inH__sum']
-    totcor = alliance.allmember.all().aggregate(Sum('corvette_inA'))['corvette_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('corvette_inB'))['corvette_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('corvette_inC'))['corvette_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('corvette_inD'))['corvette_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('corvette_inS'))['corvette_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('corvette_inH'))['corvette_inH__sum']
-    totlcr = alliance.allmember.all().aggregate(Sum('light_cruiser_inA'))['light_cruiser_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('light_cruiser_inB'))['light_cruiser_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('light_cruiser_inC'))['light_cruiser_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('light_cruiser_inD'))['light_cruiser_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('light_cruiser_inS'))['light_cruiser_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('light_cruiser_inH'))['light_cruiser_inH__sum']
-    totdes = alliance.allmember.all().aggregate(Sum('destroyer_inA'))['destroyer_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('destroyer_inB'))['destroyer_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('destroyer_inC'))['destroyer_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('destroyer_inD'))['destroyer_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('destroyer_inS'))['destroyer_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('destroyer_inH'))['destroyer_inH__sum']
-    totfri = alliance.allmember.all().aggregate(Sum('frigate_inA'))['frigate_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('frigate_inB'))['frigate_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('frigate_inC'))['frigate_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('frigate_inD'))['frigate_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('frigate_inS'))['frigate_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('frigate_inH'))['frigate_inH__sum']
-    tothcr = alliance.allmember.all().aggregate(Sum('heavy_cruiser_inA'))['heavy_cruiser_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('heavy_cruiser_inB'))['heavy_cruiser_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('heavy_cruiser_inC'))['heavy_cruiser_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('heavy_cruiser_inD'))['heavy_cruiser_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('heavy_cruiser_inS'))['heavy_cruiser_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('heavy_cruiser_inH'))['heavy_cruiser_inH__sum']
-    totbcr = alliance.allmember.all().aggregate(Sum('battlecruiser_inA'))['battlecruiser_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battlecruiser_inB'))['battlecruiser_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battlecruiser_inC'))['battlecruiser_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battlecruiser_inD'))['battlecruiser_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battlecruiser_inS'))['battlecruiser_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battlecruiser_inH'))['battlecruiser_inH__sum']
-    totbsh = alliance.allmember.all().aggregate(Sum('battleship_inA'))['battleship_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battleship_inB'))['battleship_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battleship_inC'))['battleship_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battleship_inD'))['battleship_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battleship_inS'))['battleship_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('battleship_inH'))['battleship_inH__sum']
-    totdre = alliance.allmember.all().aggregate(Sum('dreadnought_inA'))['dreadnought_inA__sum'] + \
-        alliance.allmember.all().aggregate(Sum('dreadnought_inB'))['dreadnought_inB__sum'] + \
-        alliance.allmember.all().aggregate(Sum('dreadnought_inC'))['dreadnought_inC__sum'] + \
-        alliance.allmember.all().aggregate(Sum('dreadnought_inD'))['dreadnought_inD__sum'] + \
-        alliance.allmember.all().aggregate(Sum('dreadnought_inS'))['dreadnought_inS__sum'] + \
-        alliance.allmember.all().aggregate(Sum('dreadnought_inH'))['dreadnought_inH__sum']
-    totwar = alliance.allmember.all().aggregate(Sum('warpoints'))['warpoints__sum']
+    totfig = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('fighters'))['fighters__sum']
+    totcor = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('corvettes'))['corvettes__sum']
+    totlcr = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('light_cruisers'))['light_cruisers__sum']
+    totdes = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('destroyers'))['destroyers__sum']
+    totfri = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('frigates'))['frigates__sum']
+    tothcr = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('heavy_cruisers'))['heavy_cruisers__sum']
+    totbcr = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('battlecruisers'))['battlecruisers__sum']
+    totbsh = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('battleships'))['battleships__sum']
+    totdre = fleet.objects.filter(world__alliance=alliance).aggregate(Sum('dreadnoughts'))['dreadnoughts__sum'] 
+    totwar = alliance.allmember.all().aggregate(Sum('warpoints'))['warpoints__sum'] 
     totfree = alliance.allmember.filter(econsystem=1).count()
     totmixed = alliance.allmember.filter(econsystem=0).count()
     totcp = alliance.allmember.filter(econsystem=-1).count()
@@ -1947,9 +2004,9 @@ def alliances_stats(request, allid, world):
 
 @login_required
 @world_required
-def new_alliance(request, world):
+def new_alliance(request):
     'New alliance page, checks if the world has not got an alliance and if fee to create paid.'
-
+    world = request.user.world
     message = None
 
     if world.alliance != None:
@@ -1983,155 +2040,3 @@ def new_alliance(request, world):
 
 
 # policies are in policies.py
-
-
-#GDP Sales stuff
-@login_required
-@world_required
-def gdphome(request, world):
-    'GDP Offers Home View'
-
-    message = None
-    try:
-        youroffer = GDPSale.objects.get(seller=world)
-    except GDPSale.DoesNotExist:
-        youroffer = None
-    return render(request, 'gdpsale/gdphome.html', {'message':message, 'youroffer':youroffer})
-
-
-@login_required
-@world_required
-def gdpoffers(request, world):
-    'View for GDP Offers list'
-
-    message = None
-    offers = GDPSale.objects.filter(buyer=world)
-    return render(request, 'gdpsale/gdpoffers.html', {'message': message, 'offers': offers, })
-
-
-@login_required
-@world_required
-def gdpmakeoffer(request, world):
-    'Return POST data or view for making gdp offers'
-
-    if request.method == 'POST':
-        form = GDPSaleForm(request.POST)
-        if form.is_valid():
-            buyer = form.cleaned_data['buyer']
-            buyer = World.objects.get(worldid=buyer)
-            if buyer == world:
-                message = "You cannot offer yourself!"
-                return render(request, 'gdpsale/gdphome.html', {'message': message})
-            #CHECK FOR EXISTING SALE
-            try:
-                salecheck = GDPSale.objects.get(seller=world)
-                message = "You already have a pending sale!"
-                return render(request, 'gdpsale/gdphome.html', {'message': message})
-            #ENDCHECK
-            except GDPSale.DoesNotExist:
-                try:
-                    threshold = GDPSaleThresholdManager.objects.get(target=world)
-                except GDPSaleThresholdManager.DoesNotExist:
-                    threshold = GDPSaleThresholdManager(target=world, sellthreshold=world.gdp*0.25, buythreshold=world.gdp*0.5)
-                    threshold.save()
-                threshold = GDPSaleThresholdManager.objects.get(target=world)
-                geuamount = form.cleaned_data['geuamount']
-                gdpamount = form.cleaned_data['gdpamount']
-
-                #Check GDP in Seller's World
-                if gdpamount > world.gdp:
-                    message = "You do not have enough GDP to sell that much!"
-                    return render(request, 'gdpsale/gdphome.html', {'message': message})
-                if gdpamount > threshold.sellthreshold:
-                    message = "You are attempting to sell too much GDP this turn!"
-                    return render(request, 'gdpsale/gdphome.html', {'message': message})
-
-            sale = GDPSale(seller=world, buyer=buyer, gdpamount=gdpamount, geuamount=geuamount)
-            sale.save()
-            message = "Offer Successfully Sent!"
-            return render(request, 'gdpsale/gdphome.html', {'message': message})
-
-        return render(request, 'gdpsale/gdpmakeoffer.html', {'form': form})
-
-    message = None
-
-    form = GDPSaleForm()
-
-    return render(request, 'gdpsale/gdpmakeoffer.html', {'form': form})
-
-
-@login_required
-@world_required
-def acceptgdpsale(request, saleid, world):
-    'Process acceptance of GDP Sale'
-
-    message = None
-    sale = get_object_or_404(GDPSale, id=saleid)
-    seller = sale.seller
-    thresholdbuyer = GDPSaleThresholdManager.objects.get(target=world)
-    thresholdseller = GDPSaleThresholdManager.objects.get(target=seller)
-
-    #world is equal to the buyer
-    if sale.buyer != world:
-        #Verify sale belongs to user
-        return redirect("gdphome")
-    #Verify Buy Threshold for Buyer
-    elif sale.gdpamount > thresholdbuyer.buythreshold:
-        message = "You are attempting to buy too much GDP this turn!"
-        return render(request, 'gdpsale/gdphome.html', {'message': message})
-    #Verify Sell Threshold for Seller Again
-    elif sale.gdpamount > thresholdseller.sellthreshold:
-        message = "The seller has sold too much of his GDP this turn! This offer will be automatically cancelled!"
-        sale.delete()
-        return render(request, 'gdpsale/gdphome.html', {'message': message})
-    else:
-        #Checks done, running sale process!
-        seller.gdp = seller.gdp - sale.gdpamount
-        seller.budget = seller.budget + sale.geuamount
-        seller.save()
-        world.gdp = world.gdp + sale.gdpamount
-        world.budget = world.budget - sale.geuamount
-        world.save()
-        thresholdseller.sellthreshold = thresholdseller.sellthreshold - sale.gdpamount
-        thresholdbuyer.buythreshold = thresholdbuyer.buythreshold - sale.gdpamount
-        thresholdseller.save()
-        thresholdbuyer.save()
-        sale.delete()
-        message = "GDP Sale Offer Accepted!"
-        return render(request, 'gdpsale/gdphome.html', {'message': message})
-
-
-@login_required
-@world_required
-def denygdpsale(request, saleid, world):
-    'Process denial of GDP Sale'
-
-    message = None
-    #World is equal to the buyer
-    sale = get_object_or_404(GDPSale, id=saleid)
-    #Verify sale belongs to user
-    if sale.buyer != world:
-        return redirect("gdphome")
-    else:
-        seller = sale.seller
-        seller = seller.world_name
-        sale.delete()
-        message = "You have rejected %s's GDP Sale offer!" % seller
-        return render(request, 'gdpsale/gdphome.html', {'message': message})
-
-
-@login_required
-@world_required
-def revokegdpsale(request, saleid, world):
-    'Process revocation of GDP Sale'
-
-    message = None
-    sale = get_object_or_404(GDPSale, id=saleid)
-    if sale.seller != world:
-        return redirect("gdphome")
-    else:
-        buyer = sale.buyer
-        buyer = buyer.world_name
-        sale.delete()
-        message = "You have revoked your GDP Sale offer with %s!" % buyer
-        return render(request, 'gdpsale/gdphome.html', {'message': message})

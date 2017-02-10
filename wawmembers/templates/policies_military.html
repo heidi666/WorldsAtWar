@@ -1,0 +1,274 @@
+{% extends "policies_base.html" %}
+{% load static from staticfiles %}
+{% block policiesextrahead %}
+  <script type="text/javascript" src="{% static "js/checkbystring.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/militarypolicies.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css">
+  <style>
+    table#shipmov {
+        margin-left: 20%
+    }
+  </style>
+{% endblock %}
+{% load shipbuildtype %}
+{{ errors }}
+{% block title %}Fleet Policies{% endblock %}
+
+{% block policies %}
+
+<center>
+
+  <h1>Fleet Policies</h1>
+
+  <p>Current budget: {{ world.budget }} GEU</p>
+
+  <p>Shipyards: {{ world.shipyards }} &nbsp;&nbsp;&nbsp;&nbsp;
+    Avaliable production points: {{ world.productionpoints }}</p>
+
+  {% if result != None %}
+    <p class="message">{{ result | safe }}</p>
+  {% endif %}
+
+  {% if rumsodmsg != None %}
+    <p class="rumsoddium">{{ rumsodmsg|safe }}</p>
+  {% endif %}
+
+</center>
+
+<div id="train">
+<form action="" method="post">{% csrf_token %}
+  <p>
+      Mandate a thorough series of combat and other drills in order to keep your fleet ready and at its peak performance.
+  </p>
+  <div id="twrap" style="width: 100%">
+  <div style="display: inline-block; width: 30%" id="fleetcost">
+    <span id="traincost">0</span> GEU
+  </div>
+  <div style="display: inline-block; width: 35%">
+      {{ trainform.fleet.label_tag }} {{ trainform.fleet }}
+  </div>
+  <div style="display: inline-block; width: 30%;">
+      <input type="submit" name="train" value="Train Fleet" class="button"/>
+  </div>
+</div>
+</form>
+</div>
+
+<!-- heidis rebel part -->
+
+<hr>
+<form action="" method="post">{% csrf_token %}
+<table>
+    <tr>
+      <td class="bigger" colspan="3">Attack Rebels</td>
+    </tr>
+    <tr>
+      <td colspan="3">Set your fleet to hunt down any rebels in your system. You may suffer losses and
+        your fleet will also grow slightly wearier when you confront them!</td>
+    </tr>
+    <tr>
+      <td style="width:50%">Cost: 10 GEU, {{ rebelfuelcost }} warpfuel</td>
+      <td><input type="submit" name="attackrebels" value="Attack" class="button"/></td>
+    </tr>
+  </table>
+  <hr>
+</form>
+
+<center>
+  {% if world.flagshiptype == 0 %}
+    <p class="bigger">Construct Flagship</p>
+    Resource costs: 500 GEU, 20 duranium
+    <br>
+    Shipyards: 5 &nbsp;&nbsp;&nbsp;&nbsp; Time: 5 hours
+    <p class="halfline">&nbsp;</p>
+    <span id="shipdesc">
+      A personal fighter is light and nimble, perfect for bloodthirsty or thrill-seeking <br>
+      leaders who like to get up close to the action and inflict some damage.
+    </span>
+    <p class="halfline">&nbsp;</p>
+    <div class="nopara">
+      <form action="" method="post">{% csrf_token %}
+        {{ personalshipform.shiptype.label_tag }} {{ personalshipform.shiptype }} &nbsp;
+        <input type="submit" name="buildflagship" value="Construct" class="button"/>
+      </form>
+    </div>
+  {% else %}
+    <p class="bigger">Scuttle Flagship</p>
+    If you wish to build a different type of flagship, you can scuttle your current one.
+    <p class="halfline">&nbsp;</p>
+    <form action="" method="post" id="scuttleflagship">{% csrf_token %}
+      <input type="submit" name="scuttleflagship" value="Scuttle" class="redbutton"/>
+    </form>
+  {% endif %}
+</center>
+<hr>
+
+{% if displayresearch != None %}
+  <center>
+    <p class="bigger">Research {{ shiptext }}</p>
+    Resource costs: {{ costmsg.duranium }} Duranium{% if costmsg.tritanium %},
+    {{ costmsg.tritanium }} Tritanium{% endif %}{%if costmsg.adamantium %},
+    {{ costmsg.adamantium }} Adamantium{% endif %}
+    <p class="halfline">&nbsp;</p>
+    <div class="nopara">
+      <form action="" method="post">{% csrf_token %}
+        {{ researchform.researchamount.label_tag }} {{ researchform.researchamount }} &nbsp;
+        <input type="submit" name="research" value="Research" class="button"/>
+      </form>
+    </div>
+  </center>
+  <hr>
+{% endif %}
+
+<form action="" method="post">{% csrf_token %}
+  <center>
+    <p class="bigger">Sector Movement</p>
+    {% if indefwar %}
+      <span style="color:red;">Warning: you are in a defensive war!
+        <br>If you send ships from your home region, you will suffer approval and stability losses.</span>
+      <p class="halfline">&nbsp;</p>
+    {% endif %}
+    <table id="shipmov" style="width:50%">
+      <tr>
+        <td align="left">{{ moveform.fleet.label_tag }}</td>
+        <td align="left">{{ moveform.fleet }}</td>
+      </tr>
+      <tr>
+        <td align="left">{{ moveform.destination.label_tag }}</td>
+        <td align="left">{{ moveform.destination }}</td>
+      </tr>
+      </tr>
+    </table>
+    <p class="halfline">&nbsp;</p>
+    <span id="shipmovecost"></span>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="moveship" value="Warp To Sector" class="button"/>
+  </center>
+</form>
+
+<hr>
+
+
+<form action="" method="post">{% csrf_token %}
+  <center>
+    <p class="bigger">Fleet Preferences</p>
+    <table style="width:85%">
+      <tr>
+        <td colspan="2" align="center"><b>Produce ships to:</b></td>
+        <td colspan="2" align="center"><b>Receive ships to:</b></td>
+      </tr>
+      <tr>
+      <td align="center" style="padding-left: 30px">
+        {{ buildtoform.buildchoice }}
+      </td>
+      <td rowspan="2">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+      <td align="center">
+        {{ buildtoform.recievechoice }}
+      </td>
+      </tr>
+    </table>
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="setfleetprefs" value="Submit" class="button"/>
+  </center>
+</form>
+
+<hr>
+
+<h2>Construction</h2>
+<table>
+  <form action="" method="post">{% csrf_token %}
+    <tr>
+      <td class="bigger">Shipyard</td>
+    </tr>
+    <tr>
+      <td style="width:25%">Cost: 500 GEU </td>
+      <td style="width:55%">Resources: 5 Duranium </td>
+      <td></td>
+      <td><input type="submit" name="buildshipyard" value="Shipyard" class="button"/></td>
+    </tr>
+  </form>
+  <tr><td colspan="4"><hr></td></tr>
+</table>
+
+<table>
+{% for ship in buildlist %}
+  <form action="" method="post">{% csrf_token %}
+    <tr>
+      <td class="bigger">{{ ship.name }}</td>
+    </tr>
+    <tr>
+      <td style="width:25%">Cost: {{ ship.geu }} GEU</td>
+      <td colspan="2">resources: 
+      {{ ship.duranium }} duranium{% if ship.tritanium > 0 %},
+      {{ ship.tritanium }} tritanium{% endif %}{% if ship.adamantium > 0 %},
+      {{ ship.adamantium }} adamantium
+      {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td style="width:25%">Production points: {{ ship.productionpoints }}</td>
+      <td style="width:25%"><!-- heidi legacy space --></td>
+      <td style="width:25%">Fuel cost: {{ ship.fuel }}</td>
+      <td><input type="number" name="{{ ship.fname }}" value="0" size="3" style="font-family:monospace">
+      <button type="submit" name="build" value="{{ ship.fname }}"  class="button">
+      Order construction
+      </button>
+      </td>
+    </tr>
+  </form>
+
+  <tr><td colspan="4"><hr></td></tr>
+{% endfor %}
+
+  <tr><td colspan="4"><hr></td></tr>
+
+  {% if buildpref == 'multi' %}
+    <form action="" method="post" id="buildallships">{% csrf_token %}
+      <tr>
+        <td colspan="3"></td>
+        <td><input type="submit" name="buildships" value="Build all ships" class="button"/></td>
+    </form>
+    <tr><td colspan="4"><hr></td></tr>
+  {% endif %}
+
+</table>
+
+{% if rumpolicy != None %}
+
+  <hr>
+
+  <table style="border: 2px solid green;">
+    <tr>
+      <td class="bigger" colspan="3">Rumsoddium Military Miracle</td>
+    </tr>
+    <tr>
+      <td colspan="3">Upon collecting the 4 existing pieces of rumsoddium, your scientists find it has amazing - almost miraculous - properties! They believe that if you arrange the pieces in a square and bombard them with X-rays at a frequency of exactly Hz, while a male and a female, both virgins, chant an exact world name in the room, an economic calamity will occur to the world named through means too horrible to imagine.</td>
+    </tr>
+    <tr>
+      <form action="" method="post">{% csrf_token %}
+        <td style="width:30%">Cost: 4 pieces of rumsoddium </td>
+        <td align="right" style="width:20%" >
+          <input type="text" name="targetname" size="10" value=" World Name">&nbsp;&nbsp;
+        </td>
+        <td align="left"><input type="submit" name="rumsodmil" value="Enact Ritual" class="button"/></td>
+      </form>
+    </tr>
+  </table>
+{% endif %}
+
+<span style="display:none;" id="prefs">{{ prefs }}</span>
+
+<script>
+function trainfleetcost(){
+  var costs = [{% for cost in costs %}{{cost}}, {%endfor%}];
+  var ids = [{% for id in ids %}{{id}}, {%endfor%}];
+  var choice = $("#trainchoice").val();
+  for (i = 0; i < ids.length; i++){
+    if (ids[i] == choice){
+        document.getElementById("traincost").innerHTML = costs[i]
+    }
+  }
+}
+  </script>
+
+  {% endblock %}

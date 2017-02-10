@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/length.js" %}"></script>
+{% endblock %}
+
+{% block title %}Worlds at War - New Federation{% endblock %}
+
+{% block content %}
+
+<center>
+  <h1>New Federation</h1>
+
+  {% if message != None %}
+    <p class="message">{{ message }}</p>
+  {% endif %}
+
+  <form action="" method="post">{% csrf_token %}
+
+    <p class="bigger">Name:</p>
+    <input type="text" name="name" id="name" class="countable" maxlength="20">
+    <p class="vsmallline">&nbsp;</p>
+    <span id="namestatus"></span>
+
+    <p class="bigger">Description:</p>
+    <textarea name="description" id="description" rows="4" cols="50" class="countable"
+      maxlength="300">Your alliance desc goes here.</textarea>
+    <p class="vsmallline">&nbsp;</p>
+    <span id="descriptionstatus"></span>
+
+    <p class="halfline">&nbsp;</p>
+    <input type="submit" name="newalliance" value="Submit" class="button">
+
+  </form>
+
+</center>
+
+{% endblock %}
+

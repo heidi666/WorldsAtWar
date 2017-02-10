@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block title %}Worlds at War - Your fleetsddddd{% endblock %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/jquery.collapsible.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/checkboxes.css" %}" type="text/css" />
+  <style>
+  h3 {
+    display:inline-block;
+  }
+  .collapse-open span {
+    background:url({% static "wawmembers/minus.png" %}) center no-repeat;
+    padding:10px;
+  }
+
+  .collapse-close span {
+    background:url({% static "wawmembers/plus.png" %}) center center no-repeat;
+    padding:10px;
+  }
+  table td {
+    width: 20%;
+    text-align: center;
+  }
+</style>
+{% endblock %}
+{% block content %}
+
+<style>
+.left {
+	display: inline-block;
+	width: 40%;
+	margin-right: 40px;
+	margin-top: 10px;
+	margin-bottom: 30px;
+	height: 100%;
+}
+.right {
+	display: inline-block;
+	width: 40%;
+	margin-left: 40px;
+	margin-top: 10px;
+	margin-bottom: 30px;
+	height: 100%;
+
+}
+.fleetcontainer {
+	vertical-align: top;
+	position: relative;
+}
+
+.headline {
+	margin-bottom: 30px;
+}
+
+.mainline {
+	margin: 20px;
+}
+
+.forms {
+	margin: 5px;
+	float: right;
+	align-content: right;
+}
+
+.fleetforms{
+	float: right;
+	margin-top: 5px;
+	display: inline-block;
+}
+
+.buttons {
+	align-content: center;
+	padding-bottom: 20px;
+}
+
+#id_name
+{
+	margin-right: -5px;
+    margin-bottom: 5px;
+    padding: 4px;
+    border: solid 1px rgb(50, 50, 50);
+    border-radius: 2px;
+    background-color: rgb(50, 50, 50);
+    color: white;
+
+
+}
+</style>
+<h1 class="headline"><center>Fleet Management</center></h1>
+
+ {% if result %}
+ <center>
+    <p class="message">{{ result | safe }}</p>
+ </center>
+  {% endif %}
+
+{% for fleetlist in datablob %}
+{% if fleetlist.count > 0 %}
+	<h3 class="mainline">{{ fleetlist.fleetype }} fleets</h3>
+	<span class="collapsible" id="section{{forloop.counter}}"><span></span></span>
+	<div class="fleetcontainer">
+	{% if forloop.counter == 1 %}
+		<div class="buttons">
+			<form method="POST"> {% csrf_token %}
+				{{ nameform }} sector: {{ sectorchoiceform.choice }}
+				<button class="button" name="newfleet" value="newfleet" style="margin-right: 20px">
+					Create new fleet
+				</button>
+			</form>
+		</div>
+	{% endif %}
+	{% for fleet in fleetlist.fleets %}
+		<div class="{% cycle 'left' 'right' %}">
+		{% if fleetlist.owned and fleet.name != 'Hangar' %}
+			<form method="POST">{% csrf_token %}
+			<center><p><h3>Fleet {{ fleet.nameform.name }}
+				<button class="button" name="changename" value="{{ fleet.name }}">
+					Change
+				</button>
+			</h3></p></center>
+			</form>
+		{% else %}
+			<center><p><h3>Fleet {{ fleet.name }}</h3></p></center>
+		{% endif %}
+		<table class="striped militarydisplay" style="width:90%; margin-left: 15px; margin-right: 15px">
+			{% for element in fleet.fleetdata %}
+				<tr class="{% cycle 'light' 'dark' %}">
+				{% if forloop.counter == 1 and fleetlist.outstanding %}
+					{% for item in element %}
+					{% if forloop.counter > 1 %}
+						<td>In <a href="{{ item.get_absolute_url }}">{{ item.name }}</a></td>
+					{% else %}
+						<td>{{ item|capfirst }}</td>
+					{% endif %}
+					{% endfor %}
+				{% elif forloop.counter == 1 and fleetlist.borrowed %}
+					{% for item in element %}
+					{% if forloop.counter > 1 %}
+						<td>From <a href="{{ item.get_absolute_url }}">{{ item.name }}</a></td>
+					{% else %}
+						<td>{{ item|capfirst }}</td>
+					{% endif %}
+					{% endfor %}
+				{% else %}
+					{% for item in element %}
+						<td>{{ item|capfirst }}</td>
+					{% endfor %}
+				{% endif %}
+				</tr>
+			{% endfor %}
+		</table>
+		<div class="forms">
+		{% if fleetlist.outstanding %}
+			<form method="POST">{% csrf_token %}
+				Recall fleet to sector: {{ sectorchoiceform.choice }} 
+				<button class="button" name="recall" value="{{ fleet.pk }}">
+					Recall
+				</button>
+			</form>
+		{% elif fleetlist.borrowed %}
+			<form method="POST">{% csrf_token %}
+				Send back to sector: {{ sectorchoiceform.choice }} 
+				<button class="button" name="sendback" value="{{ fleet.pk }}">
+					Relieve
+				</button>
+			</form>
+		{% else %}
+		{% if fleet.sector != 'warping' %}
+			<form method="POST" class="fleetforms">{% csrf_token %}
+				Merge with fleet {{ fleet.mergeform.fleetchoice }}
+				<button class="button" name="merge" value="{{ fleet.pk }}">
+					Merge
+				</button>
+			</form>
+			<form action="{% url 'ship_exchange' %}" method="POST" class="fleetforms">{% csrf_token %}
+				Move ships to/from {{ fleet.mergeform.fleetchoice }}
+				<button class="button" name="move" value="{{ fleet.pk }}">
+					Move
+				</button>
+			</form>
+		{% if fleet.logs %}
+		<center>
+			<form action="{% url 'fleet_logs' %}" method="POST">
+				{% csrf_token %}
+				<button type="submit" name="logs" value="{{ fleet.pk }}" class="button" style="margin-top: 10px">
+					View combat logs
+				</button>
+			</form>
+		</center>
+		{% endif %}
+
+		{% if fleet.empty %}
+		<center>
+			<form method="POST">
+				{% csrf_token %}
+				<button type="submit" name="delete" value="{{ fleet.pk }}" class="redbutton" style="margin-top: 40px">
+					Decommission fleet
+				</button>
+			</form>
+		</center>
+		{% endif %}
+		{% endif %}
+		{% endif %}
+		</div>
+		</div>
+	{% cycle '' '<hr>' %}
+	{% endfor %}
+	</div>
+	<br>
+{% endif %}
+{% endfor %}
+
+
+<script type="text/javascript">
+$(document).ready(function() {
+//collapsible management
+    $('.collapsible').collapsible();
+});
+</script>
+
+{% endblock %}

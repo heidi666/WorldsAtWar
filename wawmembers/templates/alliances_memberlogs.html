@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load filters %}
+
+{% block title %}Worlds at War - {{ alliance.alliance_name }} Member Logs{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h2>{{ alliance.alliance_name }}</h2>
+  <h3>Member Logs</h3>
+
+  <p><a href="{% url 'alliances_ind' alliance.pk %}">Return</a></p>
+
+  {% if loglist %}
+
+    <table style="width:75%" class="bordered log">
+      <tr>
+      <th>Date + Time</th><th align="left">&nbsp;&nbsp;&nbsp;&nbsp;Action</th>
+      {% for log in loglist %}
+        <tr>
+          <td class="center" style="width:30%">{{ log.datetime | date:"jS N" }}, {{ log.datetime | time:"H:i:s" }}</td>
+          <td align="left"> &nbsp;&nbsp;&nbsp;&nbsp;
+          {% if log.logtype == 0 %}
+            {{ log.officer.pk |worldlink }} invited {{ log.world.pk |worldlink }} to join.
+          {% elif log.logtype == 1 %}
+            {{ log.officer.pk |worldlink }} revoked {{ log.world.pk |worldlink }}'s invitation to join.
+          {% elif log.logtype == 2 %}
+            {{ log.world.pk |worldlink }} accepted an invite to join.
+          {% elif log.logtype == 3 %}
+            {{ log.officer.pk |worldlink }} promoted {{ log.world.pk |worldlink }} to officership.
+          {% elif log.logtype == 4 %}
+            {{ log.officer.pk |worldlink }} demoted {{ log.world.pk |worldlink }} from officership.
+          {% elif log.logtype == 5 %}
+            {{ log.world.pk |worldlink }} resigned his officership.
+          {% elif log.logtype == 6 %}
+            {{ log.officer.pk |worldlink }} purged {{ log.world.pk |worldlink }} from the alliance.
+          {% elif log.logtype == 7 %}
+            {{ log.world.pk |worldlink }} left the alliance.
+          {% elif log.logtype == 8 %}
+            {{ log.officer.pk |worldlink }} handed leadership to {{ log.world.pk |worldlink }}.
+          {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+
+  {% else %}
+
+    You have no member logs!
+
+  {% endif %}
+
+</center>
+
+{% endblock %}
+

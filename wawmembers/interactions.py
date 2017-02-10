@@ -28,98 +28,50 @@ D = decimal.Decimal
 
 def stats_ind(request, userid):
     'Displays information about other worlds.'
-
-    # redirects
-    if request.user.is_authenticated() and int(userid) == int(request.user.id):
+    logged_in = request.user.is_authenticated()
+    if logged_in:
+        worlds = World.objects.select_related('preferences', 'alliance').filter(Q(pk=userid)|Q(user=request.user))
+        #1 query instead of 4
+        target = worlds.get(pk=userid)
+        world = worlds.get(user=request.user)
+        displayactions = True
+    else:
+        target = World.objects.select_related('preferences', 'alliance').get(pk=userid)
+        world = World() #anon user
+    if target.pk == world.pk:
         return redirect('main') # redirect to your own page
 
-    try:
-        target = World.objects.get(worldid=userid)
-    except ObjectDoesNotExist:
-        return render(request, 'notfound.html', {'item': 'world'}) # instead of 404
-
-    if target.worldid == 0:
-        return render(request, 'notfound.html', {'item': 'world'}) # dummy deleted world
 
     # variable setup
-    message = atwar = haswars = offlist = deflist = admin = None
+    message = ""
+    atwar = haswars = offlist = deflist = admin = None
     warprotection = gdpprotection = targetprotection = None
     peaceoffer = warfuelcost = raidcost = None
-    displayactions = costforgeuaid = indefwar = None
+    costforgeuaid = indefwar = None
     nospies = spyintarget = spyform = spyintel = timeforintel = None
     aidform = traderessend = sendtrade = receivetrade = None
     defaultopen = 'domestic,economic,diplomacy,military'
-
+    lastseen = str(v.now() - target.lastloggedintime).split(',')[0]
     alliance = target.alliance
 
-    displaybuilds = [False for i in range(9)]
-    corlevel, lcrlevel, deslevel, frilevel, hcrlevel, bcrlevel, bshlevel, drelevel = utilities.levellist()
-
     # military levels setup
-    if target.millevel >= drelevel:
-        limit = 9
-        millevel = 'Dreadnought'
-        progress = None
-    elif target.millevel >= bshlevel:
-        limit = 9
-        millevel = 'Battleship'
-        progress = (target.millevel - bshlevel)/float(drelevel - bshlevel)
-    elif target.millevel >= bcrlevel:
-        limit = 8
-        millevel = 'Battlecruiser'
-        progress = (target.millevel - bcrlevel)/float(bshlevel - bcrlevel)
-    elif target.millevel >= hcrlevel:
-        limit = 7
-        millevel = 'Heavy Cruiser'
-        progress = (target.millevel - hcrlevel)/float(bcrlevel - hcrlevel)
-    elif target.millevel >= frilevel:
-        limit = 6
-        millevel = 'Frigate'
-        progress = (target.millevel - frilevel)/float(hcrlevel - frilevel)
-    elif target.millevel >= deslevel:
-        limit = 5
-        millevel = 'Destroyer'
-        progress = (target.millevel - deslevel)/float(frilevel - deslevel)
-    elif target.millevel >= lcrlevel:
-        limit = 4
-        millevel = 'Light Cruiser'
-        progress = (target.millevel - lcrlevel)/float(deslevel - lcrlevel)
-    elif target.millevel >= corlevel:
-        limit = 3
-        millevel = 'Corvette'
-        progress = (target.millevel - corlevel)/float(lcrlevel - corlevel)
-    else:
-        limit = 2
-        millevel = 'Fighter'
-        progress = target.millevel/float(corlevel)
-    for index, value in enumerate(displaybuilds[:limit]):
-        displaybuilds[index] = True
-
-    if progress is not None:
-        progress = int(100*progress/5.0)*5
-
-    # region ship lists
-    homeregion, staging, region1, region2, region3, hangars = utilities.mildisplaylist(target)
-
-    shiploc = display.region_display(target.flagshiplocation)
-
+    millevel = world.techlevel
+    displayactions = (True if logged_in else False)
     try:
-        world = World.objects.get(worldid=request.user.id)
-        if world.vacation:
+        if world.preferences.vacation:
             raise Exception # not allowed to take actions when you're on vacation
     except:
         pass
     else:
-        displayactions = True
         defaultopen = world.statsopenprefs
 
         # war status
-        if world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True):
+        if world.pk in War.objects.filter(defender=target).values_list('attacker', flat=True):
             atwar = True
             war = War.objects.get(attacker=world, defender=target)
             if war.peaceofferbyatk is not None:
                 peaceoffer = True
-        elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True):
+        elif world.pk in War.objects.filter(attacker=target).values_list('defender', flat=True):
             atwar = True
             war = War.objects.get(attacker=target, defender=world)
             if war.peaceofferbydef is not None:
@@ -131,44 +83,36 @@ def stats_ind(request, userid):
         if world.wardefender.count() > 0:
             indefwar = True
 
-        # if you have spare resources
-        if world.resourceproduction - Agreement.objects.filter(sender=world).exclude(receiver=world).count() > 0:
-            traderessend = True
-
-        # trade agreements
-        if Agreement.objects.filter(sender=world, receiver=target).exists():
-            sendtrade = True
-        if Agreement.objects.filter(sender=target, receiver=world).exists():
-            receivetrade = True
-
         # convenience admin links
-        if world.worldid == 1:
+        if world.pk == 1:
             admin = True
 
-        if request.method == 'POST':
+        if request.method == 'POST' and logged_in:
             form = request.POST
 
             if "sendcomm" in form:
-                commdata = form['comm']
-                if len(commdata) > 500:
-                    message = 'Maximum 500 characters!'
-                elif len(commdata) == 0:
-                    message = 'You cannot send an empty comm!'
-                elif '<' in commdata or '>' in commdata:
-                    message = 'The comm contains invalid characters!'
+                if SentComm.objects.filter(sender=world, 
+                    datetime__gte=v.now()-time.timedelta(seconds=v.delay)).count() > v.commlimit:
+                    message = "Stop spamming"
                 else:
-                    Comm.objects.create(target=target, sender=world, content=commdata)
-                    SentComm.objects.create(target=target, sender=world, content=commdata)
-                    message = 'Communique sent.'
+                    commdata = form['comm']
+                    if len(commdata) > 500:
+                        message = 'Maximum 500 characters!'
+                    elif len(commdata) == 0:
+                        message = 'You cannot send an empty comm!'
+                    elif '<' in commdata or '>' in commdata:
+                        message = 'The comm contains invalid characters!'
+                    else:
+                        Comm.objects.create(target=target, sender=world, content=commdata)
+                        SentComm.objects.create(target=target, sender=world, content=commdata)
+                        message = 'Communique sent.'
 
             if "wardec" in form:
-                power = utilities.militarypowerwfuel(world, target.region)
-                ownpower = utilities.powerallmodifiers(world, target.region)
-                targetpower = utilities.powerallmodifiers(target, target.region, ignorefuel=True) + \
-                  utilities.powerallmodifiers(target, 'S', ignorefuel=True)
-                if target.vacation:
+                ownpower = utilities.totalpower(world)
+                targetpower = utilities.totalpower(target)
+                if target.preferences.vacation:
                     message = 'This world is in vacation mode. You cannot declare war on it.'
-                elif power == 0:
+                elif ownpower == 0:
                     message = 'You cannot declare war with no fleet power!'
                 elif atwar:
                     message = 'You are already at war with this world!'
@@ -206,55 +150,45 @@ def stats_ind(request, userid):
                         world.save(update_fields=['abovegdpprotection'])
                         aboveprotect = '<br>Other worlds of any GDP may attack you, for 5 days.'
 
-                    War.objects.create(attacker=world, defender=target, region=target.region, reason=warreason)
+                    War.objects.create(attacker=world, defender=target, reason=warreason)
 
                     htmldata = news.wardec(world,warreason)
                     NewsItem.objects.create(target=target, content=htmldata)
 
                     world.declaredwars.add(target)
-                    world.warsperturn = F('warsperturn') + 1
-                    world.save(update_fields=['warsperturn'])
+                    action = {'warsperturn': {'action': 'add', 'amount': 1}}
+                    utilities.atomic_world(world.pk, action)
                     message = 'You have declared WAR!' + endprotect + aboveprotect
 
             if "attack" in form and atwar is None:
                 message = 'You are not at war with this world!'
             elif "attack" in form:
-                power = utilities.militarypowerwfuel(world, war.region)
-                fuelcost = utilities.warpfuelcost(utilities.regionshiplist(world, war.region))
-                if utilities.noweariness(world, war.region, 25):
-                    message = 'Your fleet is too exhausted to attack!'
-                elif power == 0:
-                    message = 'You have no fleet power to attack with!'
-                elif world.warpfuel < fuelcost:
-                    message = 'You do not have enough warpfuel to support this attack!'
-                elif world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True) and war.timetonextattack > v.now():
-                    timedifference = war.timetonextattack - v.now()
-                    hours, minutes, seconds = utilities.timedeltadivide(timedifference)
-                    message = 'You cannot launch another attack so soon! Your fleet still needs %s:%s:%s to \
-                        regroup before it can launch another attack.' % (hours, minutes, seconds)
-                elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True) and war.timetonextdefense > v.now():
-                    timedifference = war.timetonextdefense - v.now()
-                    hours, minutes, seconds = utilities.timedeltadivide(timedifference)
-                    message = 'You cannot launch another attack so soon! Your fleet still needs %s:%s:%s to \
-                        regroup before it can launch another attack.' % (hours, minutes, seconds)
-                else:
-                    if world in War.objects.filter(defender=target) and v.now() < world.warprotection:
-                        world.warprotection = v.now()
-                        world.save(update_fields=['warprotection'])
-
-                    if world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True):
-                        war.timetonextattack = v.now() + time.timedelta(hours=8)
-                    elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True):
-                        war.timetonextdefense = v.now() + time.timedelta(hours=8)
-                    war.save()
-
-                    utilities.wearinesschange(world, war.region, -25)
-
-                    world.warpfuel = F('warpfuel') - fuelcost
-                    world.save(update_fields=['warpfuel'])
-                    world = World.objects.get(pk=world.pk)
-
-                    return attack(request, world, target, war)
+                form = attackform(world, request.POST['attack'], request.POST)
+                if form.is_valid():
+                    fuelcost = 0
+                    enemybp = 0
+                    sector = form.cleaned_data['fleets'][0].sector
+                    ineligiblefleets = []
+                    for fleeet in form.cleaned_data['fleets']:
+                        fuelcost += fleeet.fuelcost()
+                        if fleeet.attacked:
+                            ineligiblefleets.append(['', fleeet.name])
+                    for f in fleet.objects.filter(controller=target, sector=sector):
+                        enemybp += f.power()
+                    if world.warpfuel < fuelcost:
+                        message = 'You do not have enough warpfuel to support this attack!'
+                    elif len(ineligiblefleets) > 0:
+                        message = utilities.resource_text(ineligiblefleets).replace('  ', ' ')
+                        message += 'need to reorganise and rearm until they can attack again!' 
+                    elif enemybp == 0 and sector != target.sector:
+                        message = "Can't attack enemy fleets in %s, there are none!" % sector
+                    else:
+                        if world in War.objects.filter(defender=target) and v.now() < world.warprotection:
+                            world.warprotection = v.now()
+                        actions = {'warpfuel': {'action': 'subtract', 'amount': fuelcost}}
+                        utilities.atomic_world(world.pk, actions)
+                            #extract sector from fleet location
+                        return attack(request, world, target, form.cleaned_data['fleets'], war)
 
              # freighter raid
             if "raid" in form and atwar is None:
@@ -269,12 +203,12 @@ def stats_ind(request, userid):
                     message = 'You do not have a fleet to attack with!'
                 elif world.warpfuel < raidcost:
                     message = 'You do not have enough warpfuel to support this attack!'
-                elif world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True) and war.timetonextattack > v.now():
+                elif world.pk in War.objects.filter(defender=target).values_list('attacker', flat=True) and war.timetonextattack > v.now():
                     timedifference = war.timetonextattack - v.now()
                     hours, minutes, seconds = utilities.timedeltadivide(timedifference)
                     message = 'You cannot launch another attack so soon! Your fleet still needs %s:%s:%s to \
                         regroup before it can launch another attack.' % (hours, minutes, seconds)
-                elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True) and war.timetonextdefense > v.now():
+                elif world.pk in War.objects.filter(attacker=target).values_list('defender', flat=True) and war.timetonextdefense > v.now():
                     timedifference = war.timetonextdefense - v.now()
                     hours, minutes, seconds = utilities.timedeltadivide(timedifference)
                     message = 'You cannot launch another attack so soon! Your fleet still needs %s:%s:%s to \
@@ -284,9 +218,9 @@ def stats_ind(request, userid):
                         world.warprotection = v.now()
                         world.save(update_fields=['warprotection'])
 
-                    if world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True):
+                    if world.pk in War.objects.filter(defender=target).values_list('attacker', flat=True):
                         war.timetonextattack = v.now() + time.timedelta(hours=8)
-                    elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True):
+                    elif world.pk in War.objects.filter(attacker=target).values_list('defender', flat=True):
                         war.timetonextdefense = v.now() + time.timedelta(hours=8)
                     war.save()
 
@@ -298,146 +232,130 @@ def stats_ind(request, userid):
 
                     return raid(request, world, target, war)
 
-            if 'offerpeace' in form:
+            if 'peace' in form:
                 if atwar is None:
                     message = 'You are not at war with this world!'
                 else:
-                    htmldata = news.offerpeace(world, target)
-                    newsitem = ActionNewsItem(target=target, content=htmldata, actiontype=1)
-                    newsitem.save()
+                    if form['peace'] == 'offerpeace':
+                        htmldata = news.offerpeace(world, target)
+                        newsitem = ActionNewsItem.objects.create(target=target, content=htmldata, actiontype=1)
+                    else:
+                        htmldata = news.peacerevoke(world)
+                        NewsItem.objects.create(target=target, content=htmldata)
 
-                    if world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True):
-                        war.peaceofferbyatk = newsitem
-                    elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True):
-                        war.peaceofferbydef = newsitem
+                    if world.pk in War.objects.filter(defender=target).values_list('attacker', flat=True):
+                        if form['peace'] == 'offerpeace':
+                            war.peaceofferbyatk = newsitem
+                        else:
+                            try:
+                                war.peaceofferbyatk.delete()
+                            except: pass
+                    elif world.pk in War.objects.filter(attacker=target).values_list('defender', flat=True):
+                        if form['peace'] == 'offerpeace':
+                            war.peaceofferbydef = newsitem
+                        else:
+                            try:
+                                war.peaceofferbydef.delete()
+                            except: pass
                     war.save()
-
-                    message = 'An offer of peace has been sent, which your enemy will have to accept.'
-
-            if 'revokepeace' in form:
-                if atwar is None:
-                    message = 'You are not at war with this world!'
-                else:
-                    htmldata = news.peacerevoke(world)
-                    NewsItem.objects.create(target=target, content=htmldata)
-
-                    if world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True):
-                        try:
-                            war.peaceofferbyatk.delete()
-                        except: pass
-                    elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True):
-                        try:
-                            war.peaceofferbydef.delete()
-                        except: pass
-
-                    peaceoffer = None
-                    message = 'You have revoked your peace offer.'
+                    if form['peace'] == 'offerpeace':
+                        message = 'An offer of peace has been sent, which your enemy will have to accept.'
+                    else:
+                        peaceoffer = None
+                        message = 'You have revoked your peace offer.'
 
             if 'directaid' in form:
-                form = DirectAidForm(world.millevel, target.millevel, request.POST)
+                form = Aidform(world, request.POST)
                 if world.gdp < 250:
                     message = 'Your world\'s economy is too weak to support your humanitarian efforts!'
                 elif form.is_valid():
+                    actions = {}
+                    tgtactions = {}
+                    resources = []
+                    required_capacity = 0
                     data = form.cleaned_data
-                    ressend = data['send']
-                    amountsend = int(data['amountsend'])
-
-                    geucost = (D(0.05*amountsend) if costforgeuaid else 0)
-
-                    if ressend == 0:
-                        amountsend += geucost
-
-                    amountcheck = utilities.tradeamount(world, ressend, amountsend)
-                    shipowncheck = utilities.tradeshiptech(world, ressend)
-                    shipothercheck = utilities.tradeshiptech(target, ressend)
-                    shippowercheck = utilities.tradeshippower(world, ressend, amountsend)
-                    defwarcheck = utilities.shippowerdefwars(world, ressend)
-                    count, countcheck = utilities.freightertradecheck(world, ressend, amountsend)
-                    if amountsend <= 0:
-                        message = 'Enter a positive number.'
-                    elif ressend not in v.resources:
-                        message = 'Enter a valid resource.'
-                    elif amountcheck is not True:
-                        message = amountcheck
-                    elif shipowncheck is not True:
-                        message = shipowncheck
-                    elif shipothercheck is not True:
-                        message = 'Their fleet does have the knowledge to operate or maintain such ships!'
-                    elif shippowercheck is not True:
-                        message = shippowercheck
-                    elif defwarcheck is not True:
-                        message = defwarcheck
-                    elif countcheck is not True:
-                        message = countcheck
-                    else:
-                        endprotect = ''
-                        attloss = ''
-                        resname = utilities.resname(ressend, amountsend, lower=True)
-                        if 11 <= ressend <= 19: # ships
-                            if v.now() < world.warprotection:
-                                world.warprotection = v.now()
-                                world.noobprotect = False
-                                world.save(update_fields=['warprotection','noobprotect'])
-                                endprotect = '<br>Your war protection is now over.'
-
-                            delay = (4 if world.region == target.region else 8)
-
-                            if indefwar:
-                                utilities.contentmentchange(world, -10)
-                                utilities.stabilitychange(world, -5)
-                                attloss = '<br>You have lost perception and stability.'
-
-                            outcometime = v.now() + time.timedelta(hours=delay)
-                            if 'sendhome' in world.shipsortprefs:
-                                trainingchange = utilities.trainingchangecalc(world, world.region, int(ressend)-10, amountsend)
-                            else:
-                                trainingchange = utilities.trainingchangecalc(world, 'S', int(ressend)-10, amountsend)
-
-                            taskdetails = taskdata.directaidarrival(world, resname, amountsend)
-                            task = Task(target=target, content=taskdetails, datetime=outcometime)
-                            task.save()
-
-                            newtask.directaid.apply_async(args=(world.worldid, target.worldid, task.pk, ressend, amountsend,
-                                trainingchange, 0), eta=outcometime)
-
-                        elif ressend == 0: # money
-                            trainingchange = 0
-                            htmldata = news.directaidcompletion(world, resname, amountsend)
+                    reference = []
+                    reference += v.resources
+                    geu = False
+                    for resource in reference:
+                        if data.has_key(resource) and resource == 'budget': #instant transfer
+                            if data[resource] == 0:
+                                continue
+                            action = {'budget': {'action': 'add', 'amount': data[resource]}}
+                            utilities.atomic_world(world.pk, action, target.pk)
+                            htmldata = news.directaidcompletion(world, [['GEU', data[resource]]])
                             NewsItem.objects.create(target=target, content=htmldata)
-                            utilities.resourcecompletion(target, ressend, amountsend, trainingchange)
-                            utilities.spyintercept(target, world, 'GEU', amountsend)
-                            ResourceLog.objects.create(owner=target, target=world, res=ressend, amount=amountsend, sent=False, trade=False)
+                            #logs
+                            tgtlog = ResourceLog.objects.create(owner=target, target=world)
+                            Logresource.objects.create(resource="GEU", amount=data[resource], log=tgtlog)
+                            message = "%s has recieved %s %s!" % (target.name, data[resource], 'GEU')
+                        else:
+                            if data.has_key(resource) and data[resource] > 0:
+                                resources.append([resource, data[resource]])
+                                required_capacity += v.freighter_capacity[resource] * data[resource]
+                                actions.update({resource: {'action': 'subtract', 'amount': data[resource]}})
+                                tgtactions.update({resource: {'action': 'add', 'amount': data[resource]}})
 
-                        else: # resources
-                            delay = (1 if world.region == target.region else 2)
-
-                            outcometime = v.now() + time.timedelta(hours=delay)
-                            trainingchange = 0
-
-                            world.freightersinuse = F('freightersinuse') + count
-                            world.save(update_fields=['freightersinuse'])
-
-                            taskdetails = taskdata.directaidarrival(world, resname, amountsend)
-                            task = Task(target=target, content=taskdetails, datetime=outcometime)
-                            task.save()
-
-                            newtask.directaid.apply_async(args=(world.worldid, target.worldid, task.pk, ressend, amountsend, trainingchange,
-                                count), eta=outcometime)
-
-                        utilities.resourcecompletion(world, ressend, -amountsend, -trainingchange)
-                        utilities.freightermove(world, world.region, -count)
-                        utilities.spyinterceptsend(world, target, resname, amountsend)
-
-                        ResourceLog.objects.create(owner=world, target=target, res=ressend, amount=amountsend, sent=True, trade=False)
-
-                        aidlogger.info('---')
-                        aidlogger.info('%s (id=%s) sent %s %s to %s (id=%s)',
-                            world.world_name, world.worldid, amountsend, utilities.resname(ressend), target.world_name, target.worldid)
-
-                        message = 'Aid sent!' + endprotect + attloss
-
-                else:
-                    form = DirectAidForm(world.millevel, target.millevel).as_table()
+                    freighters = world.freighters - world.freightersinuse
+                    required_freighters = (required_capacity / v.freighter_capacity['total'])+ 1
+                    if len(resources) == 0: #pure budget aid
+                        pass
+                    elif freighters >= required_freighters:
+                        #gots enough freighters
+                        delay = (1 if world.sector == target.sector else 2)
+                        outcometime = datetime=v.now() + time.timedelta(hours=delay)
+                        actions.update({
+                        'freightersinuse': {'action': 'add', 'amount': required_freighters},                              
+                        })
+                        utilities.atomic_world(world.pk, actions)
+                        taskdetails = taskdata.directaidarrival(world, resources)
+                        task = Task.objects.create(target=target, 
+                            content=taskdetails, datetime=outcometime)
+                        newtask.directaid.apply_async(args=(world.pk, target.pk, 
+                            task.pk, resources, freighters), eta=outcometime)
+                        if data['budget'] > 0:
+                            resources = [['GEU', data['budget']]] + resources
+                        #create logs!
+                        log = ResourceLog.objects.create(owner=world, target=target, sent=True)
+                        for resource in resources:
+                            Logresource.objects.create(resource=resource[0], amount=resource[1], log=log)
+                        hour = ('hours' if delay == 2 else 'hour')
+                        if len(message):
+                            message = message[:-1] + " and will recieve  %s in %s %s!" % (
+                            utilities.resource_text(resources), delay, hour)
+                        else:
+                            message = "%s will recieve %s in %s %s!" % (
+                            target.name, utilities.resource_text(resources), delay, hour)
+                    else: #not enough freighters                                    
+                        message = "We do not have enough freighters, we have %s and need %s" % (freighters, required_freighters)
+            
+            if 'shipaid' in form:
+                form = Shipaidform(world, form)
+                if form.is_valid():
+                    data = form.cleaned_data
+                    ship = data['ship_choice']
+                    amount = data['amount']
+                    delay = (4 if target.sector == world.sector else 8)
+                    outcometime = datetime=v.now() + time.timedelta(minutes=1)
+                    if data['amount'] > data['fleet_choice'].__dict__[data['ship_choice']]:
+                        message = "%s doesn't have that many %s!" % (data['fleet_choice'].name, ship)
+                    else: #is all good
+                        action = {'subtractships': {data['ship_choice']: amount}}
+                        utilities.atomic_fleet(data['fleet_choice'].pk, action)
+                        log = ResourceLog.objects.create(owner=world, target=target, sent=True)
+                        shipname = (ship.replace('_', ' ') if amount > 1 else ship[:-1].replace('_', ' ')) #to plural or not plural
+                        Logresource.objects.create(resource=shipname, amount=amount, log=log)
+                        #more stuff
+                        ref = fleet()
+                        ref.__dict__[ship] = amount
+                        training = data['fleet_choice'].maxtraining() * data['fleet_choice'].ratio() 
+                        taskdetails = taskdata.shipaidarrival(world, shipname, amount)
+                        task = Task.objects.create(target=target, 
+                            content=taskdetails, datetime=outcometime)
+                        newtask.shipaid.apply_async(args=(world.pk, target.pk, 
+                            task.pk, ship, amount, training), eta=outcometime)
+                        message = "%s %s is en route to %s from %s" % (
+                            amount, shipname, target.name, data['fleet_choice'].name)
 
             if "infiltrate" in form:
                 form = SelectSpyForm(world, request.POST)
@@ -449,7 +367,7 @@ def stats_ind(request, userid):
                     except:
                         message = "There is no such spy!"
                     else:
-                        if target.vacation:
+                        if target.preferences.vacation:
                             message = 'This world is in vacation mode. You cannot infiltrate it.'
                         elif spy.owner != world:
                             message = "This spy does not belong to your intelligence services!"
@@ -475,8 +393,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 250
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 250}}
+                        utilities.atomic_world(world.pk, actions)
                         message = propaganda(spy, target)
 
             if "gunrun" in form:
@@ -509,8 +427,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 200
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 200}}
+                        utilities.atomic_world(world.pk, actions)
                         message = intel(spy, target)
 
             if "sabyard" in form:
@@ -528,8 +446,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 2000
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 2000}}
+                        utilities.atomic_world(world.pk, actions)
                         message = sabyard(spy, target)
 
             if "sabfuel" in form:
@@ -547,8 +465,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 2000
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 2000}}
+                        utilities.atomic_world(world.pk, actions)
                         message = sabfuel(spy, target)
 
             if "sabdur" in form:
@@ -566,8 +484,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 2000
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 2000}}
+                        utilities.atomic_world(world.pk, actions)
                         message = sabdur(spy, target)
 
             if "sabtrit" in form:
@@ -585,8 +503,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 2000
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 2000}}
+                        utilities.atomic_world(world.pk, actions)
                         message = sabtrit(spy, target)
 
             if "sabadam" in form:
@@ -604,8 +522,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 2000
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 2000}}
+                        utilities.atomic_world(world.pk, actions)
                         message = sabadam(spy, target)
 
             if "sabhangars" in form:
@@ -621,8 +539,8 @@ def stats_ind(request, userid):
                     else:
                         spy.nextaction = v.now() + time.timedelta(hours=8)
                         spy.save(update_fields=['nextaction'])
-                        world.budget = F('budget') - 2000
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 2000}}
+                        utilities.atomic_world(world.pk, actions)
                         message = sabhangars(spy, target)
 
             if "withdraw" in form:
@@ -641,50 +559,17 @@ def stats_ind(request, userid):
                         spy.save()
                         message = 'You have successfully withdrawn your spy from the enemy world!'
 
-            if "sendtraderes" in form:
-                if world.resource == target.resource:
-                    message = 'This world has the same trade resource as you.'
-                elif abs(world.econsystem - target.econsystem) == 2:
-                    message = 'You cannot trade with a world that has an opposite economic alignment!'
-                elif not traderessend:
-                    message = 'You do not have surplus to send!'
-                elif Agreement.objects.filter(receiver=target, resource=world.resource).count() > 12:
-                    message = 'This world is already receiving too much of your resource!'
-                elif sendtrade:
-                    message = 'You are already sending your trade resource to this world!'
-                else:
-                    agreement = list(Agreement.objects.filter(sender=world, receiver=world))[0]
-                    agreement.receiver = target
-                    agreement.save(update_fields=['receiver'])
-                    AgreementLog.objects.create(owner=target, target=world, resource=world.resource, logtype=0)
-                    message = 'You are now sending one lot of your trade resource to this world.'
-
-            if "revoketraderes" in form and sendtrade:
-                agreement = Agreement.objects.get(sender=world, receiver=target)
-                agreement.receiver = world
-                agreement.save(update_fields=['receiver'])
-                AgreementLog.objects.create(owner=target, target=world, resource=world.resource, logtype=1)
-                message = 'You have stopped sending your trade resource to this world.'
-
-            if "refusetraderes" in form and receivetrade:
-                agreement = Agreement.objects.get(sender=target, receiver=world)
-                agreement.receiver = target
-                agreement.save(update_fields=['receiver'])
-                AgreementLog.objects.create(owner=target, target=world, resource=world.resource, logtype=3)
-                message = 'You have refused this world\'s trade agreement.'
-
-        if world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True):
+        if world.pk in War.objects.filter(defender=target).values_list('attacker', flat=True):
             atwar = True
             war = War.objects.get(attacker=world, defender=target)
             if war.peaceofferbyatk is not None:
                 peaceoffer = True
-        elif world.worldid in War.objects.filter(attacker=target).values_list('defender', flat=True):
+        elif world.pk in War.objects.filter(attacker=target).values_list('defender', flat=True):
             atwar = True
             war = War.objects.get(attacker=target, defender=world)
             if war.peaceofferbydef is not None:
                 peaceoffer = True
 
-        aidform = DirectAidForm(world.millevel, target.millevel).as_table()
         spyform = SelectSpyForm(world)
 
         # recalculate variables in case an action has changed them
@@ -699,12 +584,6 @@ def stats_ind(request, userid):
         if Spy.objects.filter(owner=world, location=world).count() == 0:
             nospies = True
 
-        if Agreement.objects.filter(sender=world, receiver=target).exists():
-            sendtrade = True
-
-        if Agreement.objects.filter(sender=target, receiver=world).exists():
-            receivetrade = True
-
         if Spy.objects.filter(owner=world).filter(location=target).count() == 1:
             spyintarget = Spy.objects.filter(owner=world, location=target)[0]
             if spyintarget.inteltime > v.now():
@@ -712,133 +591,132 @@ def stats_ind(request, userid):
                 timediff = spyintarget.inteltime - v.now()
                 hours, minutes, seconds = utilities.timedeltadivide(timediff)
                 timeforintel = 'You have %s:%s:%s of intel remaining.' % (hours, minutes, seconds)
-
-    target = World.objects.get(pk=target.pk)
-    homeregion, staging, region1, region2, region3, hangars = utilities.mildisplaylist(target)
+    #if the two worlds are at war
+    #calculate what fleets can attack where and what buttons to render
+    attackforms = []
+    if atwar:  
+        worldfleets = world.controlled_fleets.all().exclude(sector='warping').exclude(sector='hangar')
+        targetfleets = target.controlled_fleets.all().exclude(sector='warping').exclude(sector='hangar')
+        sectors = {'amyntas': 0, 'bion': 0, 'cleon': 0, 'draco': 0}
+        for unit in worldfleets:
+            sectors[unit.sector] = 1
+            if unit.sector == target.sector:
+                sectors[unit.sector] = 2
+        for unit in targetfleets:
+            sectors[unit.sector] += 1
+        for sector in v.sectors: #organised list so it shows amyntas -> draco
+            if sectors[sector] >= 2: #both worlds has fleets in given sector
+                attackforms.append({'form': attackform(world, sector), 'sector': sector})
+        if len(attackforms) == 0:
+            attackforms = False #so we can display error message
+    milinfo = utilities.mildisplaylist(target, main=False)
+    mildisplay = display.fleet_display(milinfo[0], milinfo[1], main=False)
+    target.refresh_from_db()
     if target.warattacker.count() > 0 or target.wardefender.count() > 0:
         haswars = True
         offlist = [wars.defender for wars in target.warattacker.all()]
         deflist = [wars.attacker for wars in target.wardefender.all()]
+    initdata = {}
+    for resource in v.resources:
+        if world.__dict__[resource] > 0:
+            initdata.update({resource: 0})
+    
 
-    if atwar:
-        shiplist = utilities.regionshiplist(world, war.region)
-        warfuelcost = utilities.warpfuelcost(shiplist)
-        raidlist = shiplist[:2] + [0, 0, 0, 0, 0, 0, 0]
-        raidcost = utilities.warpfuelcost(raidlist)
-
-    return render(request, 'stats_ind.html', {'target': target, 'message':message, 'displayactions':displayactions, 'atwar':atwar,
-        'alliance':alliance, 'millevel': millevel, 'displaybuilds':displaybuilds, 'homeregion':homeregion, 'region1':region1, 'region2':region2,
-        'region3':region3, 'aidform':aidform, 'haswars':haswars, 'offlist':offlist, 'deflist':deflist, 'warprotection':warprotection,
+    return render(request, 'stats_ind.html', {'target': target, 'displayactions': displayactions, 'message':message, 'atwar':atwar,
+        'alliance':alliance, 'millevel': millevel, 'aidfleet': aidfleetform(world), 'aidform':Aidform(world, initial=initdata), 'haswars':haswars, 'offlist':offlist, 'deflist':deflist, 'warprotection':warprotection,
         'peaceoffer':peaceoffer, 'gdpprotection':gdpprotection, 'warfuelcost':warfuelcost, 'costforgeuaid':costforgeuaid, 'indefwar':indefwar,
-        'nospies':nospies, 'spyintarget':spyintarget, 'spyform':spyform, 'spyintel':spyintel, 'progress':progress, 'timeforintel':timeforintel,
-        'defaultopen':defaultopen, 'hangars':hangars, 'staging':staging, 'traderessend':traderessend, 'sendtrade':sendtrade,
-        'receivetrade':receivetrade, 'raidcost':raidcost, 'admin':admin, 'shiploc':shiploc, 'targetprotection':targetprotection})
+        'nospies':nospies, 'spyintarget':spyintarget, 'mildisplay': mildisplay, 'spyform':spyform, 'spyintel':spyintel, 'timeforintel':timeforintel,
+        'defaultopen':defaultopen, 'lastonline': display.lastonline(target), 'attackforms': attackforms, 'shipaid': Shipaidform(world),
+        'receivetrade':receivetrade, 'lastseen': lastseen, 'raidcost':raidcost, 'targetprotection':targetprotection})
 
 
-def attack(request, world, target, war):
+
+def battle(attacker, defender):
+    pass
+
+
+
+def attack(request, world, target, fleets, war):
     'Calculates consequences of a war attack.'
-
     # variable setup
-    warover = None
-
-    worldlist = utilities.regionshiplist(world, war.region)
-    totalworldpower = utilities.powerallmodifiers(world, war.region)
-    baseworldpower = utilities.powerfromlist(worldlist, False)
-
-    targetlist = utilities.regionshiplist(target, war.region)
-    totaltargetpower = utilities.powerallmodifiers(target, war.region)
-    basetargetpower = utilities.powerfromlist(targetlist, False)
-    orgtargetlist = list(targetlist)
-    orgtottargetpower = totaltargetpower
-
-    staginglist = utilities.regionshiplist(target, 'S')
-    totalstagingpower = utilities.powerallmodifiers(target, 'S')
-    basestagingpower = utilities.powerfromlist(staginglist, False)
-
-    stagingactive = hsratio = None
-
-    lossgdp = target.gdp / 6
-    lossgrowth = (target.growth/2 if target.growth > 0 else 0)
-    lossbudget = target.budget / 2
-    lossfuel = target.warpfuel / 2
-    lossdur = target.duranium / 2
-    losstrit = target.tritanium / 2
-    lossadam = target.adamantium / 2
-    lossfreighters = int(utilities.freighterregion(target, war.region)/6)
-
-    wingdp = int(lossgdp*0.75)
-    winbudget = int(lossbudget*D(0.75))
-    winfuel = int(lossfuel*0.75)
-    windur = int(lossdur*0.75)
-    wintrit = int(losstrit*0.75)
-    winadam = int(lossadam*0.75)
-    winfreighters = int(lossfreighters*0.2)
-
-    hangarpower = utilities.militarypower(target, 'H')
-    shiplist = utilities.regionshiplist(target, 'H')
-    hanglosses = utilities.war_losses(0.3*hangarpower, shiplist)
-    hanglosses = utilities.hangarcalculator(world, hanglosses)
-
-    flagworld = utilities.flagshipregion(world, war.region)
-    flagtarget = utilities.flagshipregion(target, war.region)
-
-    # involve staging fleet
-    if war.region == target.region:
-        stagingactive = True
-        try:
-            hsratio = (totaltargetpower/(totaltargetpower+totalstagingpower))
-        except:
-            hsratio = 1
-        if sum(targetlist) == 0:
-            hsratio = 0
-        totaltargetpower += totalstagingpower
-        basetargetpower += basestagingpower
-        targetlist = [x+y for x, y in zip(targetlist, staginglist)]
-        lossfreighters += int(utilities.freighterregion(target, 'S')/6)
+    actions = {}
+    targetactions = {}
+    sector = fleets[0].sector
+    flagworld = flagtarget = False
+    defensefleets = target.controlled_fleets.all().filter(sector=sector)
+    OOS  = (True if sector != target.sector else False) #out of sector combat gets no def bonus
+    warover = False
+    surrender = False
+    #attacker setup
+    baseworldpower = totalworldpower = 0
+    for ships in fleets:
+        totalworldpower += ships.powermodifiers()
+        baseworldpower += ships.basepower()
+        if ships.flagship:
+            flagworld = True
+    #defender setup
+    basetargetpower = totaltargetpower = 0
+    for ships in defensefleets:
+        print ships.basepower(), ships.powermodifiers()
+        totaltargetpower += ships.powermodifiers()
+        basetargetpower += ships.basepower()
+        if ships.flagship:
+            flagtarget = True
 
     # automatic victory
-    if 0.1*totalworldpower > basetargetpower or basetargetpower == 0:
+    if (0.1*totalworldpower > basetargetpower or basetargetpower == 0) and OOS == False:
+        #no automatic victory for OOS combat
         warover = True
         battlevictory = True
-
-        resultdetails, htmldata = news.warresult(war.region, world, target, wingdp, 0, winbudget, winfuel,
-            windur, wintrit, winadam, hanglosses, winfreighters, flagworld, flagtarget)
-
-        newsitem = NewsItem(target=target, content=htmldata)
-        newsitem.save()
-
+        surrender = True
     else:
-        # total losses
-        deflosses = utilities.war_result(totalworldpower, totaltargetpower, basetargetpower, list(targetlist), bonus=True)
-        attlosses = utilities.war_result(totaltargetpower, totalworldpower, baseworldpower, list(worldlist))
+        # total damage per world
+        if OOS:
+            attackdamage = utilities.war_result(totalworldpower, totaltargetpower, basetargetpower)
+        else:
+            attackdamage = utilities.war_result(totalworldpower, totaltargetpower, basetargetpower, bonus=True)
+        defensedamage = utilities.war_result(totaltargetpower, totalworldpower, baseworldpower)
+        #now we determine how much damage each fleet sustained
+        allfleets = {}
+        for balls in fleets:
+            ratio = float(balls.basepower()) / float(baseworldpower)
+            sustained = defensedamage * ratio
+            allfleets.update({balls: sustained})
+        for balls in defensefleets:
+            ratio = float(balls.basepower()) / float(basetargetpower)
+            sustained = attackdamage * ratio
+            allfleets.update({balls: sustained})
+        #determine shiplosses
+        allfleetlosses = {}
+        worldloss = fleet()
+        targetloss = fleet()
+        p = []
+        for fleetobj, damage in allfleets.iteritems():
+            allfleetlosses.update({fleetobj.pk: utilities.war_losses(damage, fleetobj)})
+            p.append(allfleetlosses[fleetobj.pk].heidilist())
+            if fleetobj.controller == world:
+                worldloss.merge(allfleetlosses[fleetobj.pk])
+            else:
+                targetloss.merge(allfleetlosses[fleetobj.pk])
+        #nukiepants the fleets
+        totaldeath = fleet()
+        for fleetpk, losses in allfleetlosses.iteritems():
+            utilities.atomic_fleet(fleetpk, {'loss': losses})
+            totaldeath.merge(losses)
 
         # resource salvage
-        salvdur, salvtrit, salvadam = utilities.salvage([x+y for x, y in zip(deflosses, attlosses)])
-        target.salvdur = F('salvdur') + salvdur
-        target.salvtrit = F('salvtrit') + salvtrit
-        target.salvadam = F('salvadam') + salvadam
-        target.save(update_fields=['salvdur','salvtrit','salvadam'])
-
-        # split losses between staging
-        if stagingactive:
-            homelosses, staginglosses = utilities.staginglosssplit(deflosses, targetlist, staginglist, hsratio)
+        salvdur, salvtrit, salvadam = utilities.salvage(totaldeath)
+        if OOS:
+            Salvage.objects.create(sector=sector, duranium=salvdur, tritanium=salvtrit, adamantium=salvadam)
         else:
-            homelosses = deflosses
-            staginglosses = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-
-        # actually subtract ships
-        utilities.warloss_byregion(target, war.region, homelosses)
-        utilities.warloss_byregion(target, 'S', staginglosses)
-        utilities.warloss_byregion(world, war.region, attlosses)
+            targetactions.update({
+                'salvdur': {'action': 'add', 'amount': salvdur},
+                'salvtrit': {'action': 'add', 'amount': salvtrit},
+                'salvadam': {'action': 'add', 'amount': salvadam},
+                })
 
         # damage results for assigning victory
-        damagedealt = utilities.powerfromlist(deflosses, False)
-        damagesustained = utilities.powerfromlist(attlosses, False)
-        battlevictory = (True if damagedealt > damagesustained else False)
-
-        # random freighter loss
-        freighterlost = random.randint(0,2)
-        utilities.freighterloss(target, war.region, freighterlost)
+        battlevictory = (True if attackdamage > defensedamage else False)
 
         # flagship interaction
         flagmeet = flagworldlose = flagtargetlose = False
@@ -851,115 +729,182 @@ def attack(request, world, target, war):
         elif flagtarget:
             flagtargetlose = (True if random.randint(1,80) == 1 else False)
 
+        #doublecheck outcome
+        if not flagtargetlose:
+            for ships in defensefleets:
+                if ships.flagship:
+                    ships.refresh_from_db()
+                    if ships == fleet():
+                        flagtargetlose = True
+        #necessary because reasons
+        #nah for realios
+        #flagships is rngesus and an obliterated fleet with intact flagship is no
+        #so if fleet got decimated flagship is kill as well
+
         if flagworldlose or flagtargetlose:
             if flagworldlose and not flagtargetlose:
-                contworld = -10
-                conttarget = 10
+                actions.update({'contentment': {'action': 'add', 'amount': utilities.attrchange(world.contentment, -10)}})
+                targetactions.update({'contentment': {'action': 'add', 'amount': utilities.attrchange(target.contentment, 10)}})
             elif flagtargetlose and not flagworldlose:
-                contworld = 10
-                conttarget = -10
-            else:
-                contworld = conttarget = 0
-            utilities.contentmentchange(world, contworld)
-            utilities.contentmentchange(target, conttarget)
+                actions.update({'contentment': {'action': 'add', 'amount': utilities.attrchange(world.contentment, 10)}})
+                targetactions.update({'contentment': {'action': 'add', 'amount': utilities.attrchange(target.contentment, -10)}})
+            utilities.atomic_world(target.pk, targetactions)
+            utilities.atomic_world(world.pk, actions)
+            targetactions = {}
+            actions = {}
 
         if flagworldlose:
-            utilities.flagshipreset(world)
+            for f in fleets:
+                if f.flagship:
+                    utilities.atomic_fleet(f.pk, {'set': {'flagship': False}})
         if flagtargetlose:
-            utilities.flagshipreset(target)
-
-        # text results
-        resultdetails, htmldata = news.battleresult(war.region, world, target, deflosses, attlosses, freighterlost,
-            flagworld, flagtarget, flagmeet, flagworldlose, flagtargetlose)
+            for f in defensefleets:
+                if f.flagship:
+                    utilities.atomic_fleet(f.pk, {'set': {'flagship': False}})
 
         # reload worlds
-        world = World.objects.get(pk=world.pk)
-        target = World.objects.get(pk=target.pk)
-
-        # testing leftovers lol
-        admin = World.objects.get(pk=1)
-        for i in utilities.regionshiplist(target, war.region) + utilities.regionshiplist(target, 'S'):
-            if i < 0:
-                NewsItem.objects.create(target=admin, content="sector: %s, attlist: %s, flagatt: %s, totatt: %s, homelist: %s, staglist: %s, totlist: %s\
-                    flagdef: %s, tothome: %s, totstag: %s, totdef: %s || ratio: %s, attlosses: %s, deflosses: %s, homelosses: %s, staglosses: %s \
-                    || postatt: %s, posthome: %s, poststag: %s"
-                    % (repr(war.region), repr(worldlist), repr(flagworld), repr(totalworldpower), repr(orgtargetlist), repr(staginglist), repr(targetlist),
-                        repr(flagtarget), repr(orgtottargetpower), repr(totalstagingpower), repr(totaltargetpower), repr(hsratio), repr(attlosses), repr(deflosses),
-                        repr(homelosses), repr(staginglosses), repr(utilities.regionshiplist(world, war.region)),
-                        repr(utilities.regionshiplist(target, war.region)), repr(utilities.regionshiplist(target, 'S'))))
-                break
+        world.refresh_from_db()
+        target.refresh_from_db()
 
         # reload data after attack
-        targetlist = utilities.regionshiplist(target, war.region)
-        staginglist = utilities.regionshiplist(target, 'S')
-        totalworldpower = utilities.powerallmodifiers(world, war.region)
-        basetargetpower = utilities.powerfromlist(targetlist, False)
-        if stagingactive:
-            basetargetpower += utilities.powerfromlist(staginglist, False)
-
+        defensefleets = target.controlled_fleets.all().filter(sector=sector)
+        baseworldpower = totalworldpower = 0
+        for ships in fleets:
+            ships.refresh_from_db()
+            totalworldpower += ships.powermodifiers()
+            baseworldpower += ships.basepower()
+        #defender setup
+        basetargetpower = totaltargetpower = 0
+        for ships in defensefleets:
+            totaltargetpower += ships.powermodifiers()
+            basetargetpower += ships.basepower()
+        #setting flagship data for easy manipulation
+        #or at least easier than passing every variable like heidi did
+        flag = {'world': flagworld, 'target': flagtarget, 'worldloss': flagworldlose, 'targetloss': flagtargetlose,
+            'worldname': world.flagshipname, 'targetname': target.flagshipname, 'meet': flagmeet}
         # war end condition
-        if 0.1*totalworldpower > basetargetpower or basetargetpower == 0:
-            warover = True
-            resultdetails, htmldata = news.finalbattleresult(war.region, world, target, deflosses, attlosses, wingdp, 0, winbudget,
-                winfuel, windur, wintrit, winadam, hanglosses, freighterlost, winfreighters, flagworld, flagtarget, flagmeet,
-                flagworldlose, flagtargetlose)
+        if OOS and basetargetpower == 0:
+            print "Triggered"
+            #OOS war end calculations and sheeit
+            surplusfreighters = 0
+            for ships in defensefleets:
+                surplusfreighters += ships.freighters
+                #attacker takes remaining freighters for himself
+                utilities.atomic_fleet(ships.pk, {'set': {'freighters': 0}}) 
+                #freighters are distributed evenly between attacking fleets
+                #but preferentially given to those who needs them
+            for ships in fleets:
+                if ships.enoughfuel()[1] == 'freighters': #fleet needs freighters to function
+                    needed = (ships.fuelcost() * v.freighter_capacity['warpfuel'] / \
+                    v.freighter_capacity['total']) + 1
+                    if surplusfreighters >= needed:
+                        surplusfreighters -= needed
+                        atomic_fleet(ships.pk, {'add': {'freighters': needed}})
+                    else:
+                        surplusfreighters = 0
+                        atomic_fleet(ships.pk, {'add': {'freighters': surplusfreighters}})
+                        break
+            stolenfreighters = surplusfreighters
 
-        NewsItem.objects.create(target=target, content=htmldata)
+            assignment = [0] * len(fleets)
+            if surplusfreighters > len(fleets):
+                for n in assignment:
+                    n += 1
+                    surplusfreighters -= 1
+            while surplusfreighters > 0:
+                assignment[random.randint(0, len(assignment)-1)] += 1
+                surplusfreighters -= 1
+            for ships, freighters in zip(fleets, assignment):
+                utilities.atomic_fleet(ships.pk, {'add': {'freighters': freighters}})
+
+            resultdetails, htmldata = news.OOSfinalbattleresult(sector, world, target, worldloss, 
+                targetloss, stolenfreighters, fleets, defensefleets, flag)
+
+        elif (0.1*totalworldpower > basetargetpower or basetargetpower == 0) and not OOS:
+            #home sector victory battle
+            warover = True
+        else:
+            #regular combat result
+            resultdetails, htmldata = news.battleresult(sector, world, target, worldloss, 
+                targetloss, fleets, defensefleets, flag)
+
+            NewsItem.objects.create(target=target, content=htmldata)
 
     if warover:
+        losses = { #maximum losses
+        'warpfuel': (target.warpfuel / 2 if target.warpfuel > 0 else 0),
+        'duranium': (target.duranium / 2 if target.duranium > 0 else 0),
+        'tritanium': (target.tritanium / 2 if target.tritanium > 0 else 0),
+        'adamantium': (target.adamantium / 2 if target.adamantium > 0 else 0),
+        }
+        capacity = 0
+        for ships in fleets:
+            capacity += ships.__dict__['freighters'] * v.freighter_capacity['total']
+        preferred = world.preferences.winresource
+        actions = {
+        'warpoints': {'action': 'add', 'amount': target.warpoints+1},
+        'budget': {'action': 'add', 'amount': (target.budget / 2 if target.budget > 0 else 0)},
+        'gdp': {'action': 'add', 'amount': (target.gdp / 6 if target.gdp > 0 else 0)},
+        'growth': {'action': 'add', 'amount': (target.growth/2 if target.growth > 0 else 0)},
+        }
+        if capacity > losses[preferred] * v.freighter_capacity[preferred]:
+            actions.update({preferred: {'action': 'add', 'amount': losses[preferred] * v.freighter_capacity[preferred]}})
+            capacity -= losses[preferred] * v.freighter_capacity[preferred]
+        else:
+            actions.update({preferred: {'action': 'add', 'amount': 0}})
+            while capacity > v.freighter_capacity[preferred]:
+                actions[preferred]['amount'] += 1
+                capacity -= v.freighter_capacity[preferred]
 
-        # spoils of war
-        world.gdp = F('gdp') + wingdp
-        target.gdp = F('gdp') - lossgdp
+        losses.pop(preferred)
+        while capacity > 0: #distribute war loot lol
+            nogo = 0
+            for item in losses: #even distribution for the non-preferred resources
+                if losses[item] == 0:
+                    nogo += 1
+                    continue
+                if capacity >= v.freighter_capacity[item]:
+                    if actions.has_key(item):
+                        actions[item]['amount'] += 1
+                    else:
+                        actions.update({item: {'action': 'add', 'amount': 1}})
+                    capacity -= v.freighter_capacity[item]
+                    losses[item] -= 1
+                else:
+                    nogo += 1
+            if sum(losses.values()) == 0 or nogo == len(losses):
+                break
 
-        target.growth = F('growth') - lossgrowth
-
-        world.budget = F('budget') + winbudget
-        target.budget = F('budget') - lossbudget
-
-        world.warpfuel = F('warpfuel') + winfuel
-        target.warpfuel = F('warpfuel') - lossfuel
-
-        world.duranium = F('duranium') + windur
-        target.duranium = F('duranium') - lossdur
-
-        world.tritanium = F('tritanium') + wintrit
-        target.tritanium = F('tritanium') - losstrit
-
-        world.adamantium = F('adamantium') + winadam
-        target.adamantium = F('adamantium') - lossadam
-
-        world.warpoints = F('warpoints') + 1 + target.warpoints
-        target.warpoints = 0
-
-        utilities.hangargain(world, hanglosses)
-        utilities.warloss_byregion(target, 'H', hanglosses)
-
-        utilities.freightermove(world, war.region, winfreighters)
-        utilities.freighterloss(target, war.region, lossfreighters)
-
-        h1, h2, h3, h4, h5, h6, h7, h8, h9 = hanglosses
-
-        resourcelist = ['gdp','growth','budget','warpfuel','duranium','tritanium','adamantium','warpoints']
-        world.save(update_fields=resourcelist)
-        target.save(update_fields=resourcelist)
-
+        resources = ['gdp', 'growth'] + v.resources #for proper display
+        #because dicts aren't ordered
+        for key in resources[:]: #workaround for python being lazy
+            if not actions.has_key(key):
+                resources.remove(key)
+                continue 
+            targetactions.update({key: {'action': 'subtract', 'amount': actions[key]['amount']}})
+        targetactions.update({'warpoints': {'action': 'set', 'amount': 0}})
         # logs
-        WarLog.objects.create(owner=world, target=target, victory=True, gdp=wingdp, growth=0, budget=winbudget,
-          warpfuel=winfuel, duranium=windur, tritanium=wintrit, adamantium=winadam, fig=h1, cor=h2, lcr=h3, des=h4,
-          fri=h5, hcr=h6, bcr=h7, bsh=h8, dre=h9, fre=winfreighters)
-        WarLog.objects.create(owner=target, target=world, victory=False, gdp=lossgdp, growth=lossgrowth, budget=lossbudget,
-            warpfuel=lossfuel, duranium=lossdur, tritanium=losstrit, adamantium=lossadam, fig=h1, cor=h2, lcr=h3, des=h4,
-            fri=h5, hcr=h6, bcr=h7, bsh=h8, dre=h9, fre=lossfreighters)
+        winlog = Warlog(owner=world, target=target, victory=True)
+        winlog.set(actions, resources)
+        winlog.save()
+        loserlog = Warlog(owner=target, target=world, victory=False)
+        loserlog.set(actions, resources, reverse=True)
+        winlog.save()
+        if surrender:
+            resultdetails, htmldata = news.warresult(sector, world, target, actions, 
+                ' no ships at all', 0, fleets, defensefleets)
+        else:
+            resultdetails, htmldata = news.finalbattleresult(sector, world, target, actions, 
+                resources, ' no ships at all', worldloss, targetloss, fleets, defensefleets)
+        newsitem = NewsItem(target=target, content=htmldata)
+        newsitem.save()
 
 
-        if world.worldid in War.objects.filter(defender=target).values_list('attacker', flat=True): # if you're the attacker
+        if world.pk in War.objects.filter(defender=target).values_list('attacker', flat=True): # if you're the attacker
             # rumsoddium transfer
             if target.rumsoddium >= 1:
-                world.rumsoddium = F('rumsoddium') + target.rumsoddium
-                target.rumsoddium = 0
-                world.save(update_fields=['rumsoddium'])
-                target.save(update_fields=['rumsoddium'])
+                actions.update({'rumsoddium': {'action': 'add', 'amount': target.rumsoddium}})
+                targetactions.update({'rumsoddium': {'action': 'set', 'amount': 0}})
                 htmldata = news.rumsoddium(world)
                 NewsItem.objects.create(target=target, content=htmldata)
                 resultdetails += '<p class="halfline">&nbsp;</p><span class="green">You have also taken their prized rumsoddium!</span>'
@@ -967,15 +912,17 @@ def attack(request, world, target, war):
                 data.rumsoddiumwars = F('rumsoddiumwars') + 1
                 data.save(update_fields=['rumsoddiumwars'])
             # attribute change
-            utilities.contentmentchange(target, -20)
-            utilities.stabilitychange(target, -10)
+            targetactions.update({
+                'contentment': {'action': 'add', 'amount': utilities.attrchange(target.contentment, -20)},
+                'stability': {'action': 'add', 'amount': utilities.attrchange(target.stability, -10)}
+                })
             # war protection
             if not v.now() < target.brokenwarprotect:
-                target.warprotection = v.now() + time.timedelta(days=5)
-                target.save(update_fields=['warprotection'])
-
+                targetactions.update({'warprotection': {'action': 'set', 'amount': v.now() + time.timedelta(days=5)}})
         # end of war
         war.delete()
+        utilities.atomic_world(world.pk, actions)
+        utilities.atomic_world(target.pk, targetactions)
 
     return render(request, 'warresult.html', {'resultdetails': resultdetails, 'battlevictory': battlevictory})
 
@@ -1091,7 +1038,8 @@ def propaganda(spy, target):
     if 75 + spy.propaganda >= chance:
         spy.propaganda += 1
         spy.save(update_fields=['propaganda'])
-        utilities.contentmentchange(target, -20)
+        cont = utilities.attrchange(target.contentment, -20)
+        utilities.atomic_world(target.pk, {'contentment': {'action': 'add', 'amount': cont}})
         result = 'Your propaganda campaign was successful in sowing discontent among the people.'
     else:
         caught, caughtmsg = utilities.caught(spy)
@@ -1115,7 +1063,8 @@ def gunrun(spy, target):
     if 65 + spy.gunrunning >= chance:
         spy.gunrunning += 1
         spy.save(update_fields=['gunrunning'])
-        utilities.rebelschange(target, 10)
+        rebels = utilities.attrchange(target.rebels, 10, zero=True)
+        utilities.atomic_world(target.pk, {'rebels': {'action': 'add', 'amount': rebels}})
         result = 'Your tech was passed on to the rebels, who successfully mount some resistance!'
     else:
         caught, caughtmsg = utilities.caught(spy)
@@ -1139,8 +1088,7 @@ def intel(spy, target):
     if 85 + spy.intelligence >= chance:
         spy.intelligence += 1
         spy.inteltime = v.now() + time.timedelta(hours=24)
-        spy.save(update_fields=['intelligence'])
-        spy.save(update_fields=['inteltime'])
+        spy.save(update_fields=['intelligence', 'inteltime'])
         result = 'You managed to set up your electronic surveillance system successfully!'
     else:
         caught, caughtmsg = utilities.caught(spy)
@@ -1165,7 +1113,11 @@ def sabyard(spy, target):
         spy.sabotage += 2
         spy.save(update_fields=['sabotage'])
         target.shipyards = F('shipyards') - 1
-        target.save(update_fields=['shipyards'])
+        actions = {'shipyards': {'action': 'subtract', 'amount': 1}}
+        if target.productionpoints > target.shipyards:
+            reduction = target.productionpoints / target.shipyards
+            actions.update({'productionpoints': {'action': 'subtract', 'amount': reduction}})
+        utilities.atomic_world(target.pk, actions)
         htmldata = news.notifysab('yard')
         NewsItem.objects.create(target=target, content=htmldata)
         result = 'Your crack team successfully bypassed security and blew up an enemy shipyard!'
@@ -1191,8 +1143,7 @@ def sabfuel(spy, target):
     if 45 + spy.sabotage >= chance:
         spy.sabotage += 2
         spy.save(update_fields=['sabotage'])
-        target.warpfuelprod = F('warpfuelprod') - 10
-        target.save(update_fields=['warpfuelprod'])
+        utilities.atomic_world(target.pk, {'warpfuelprod': {'action': 'subtract', 'amount': v.production['warpfuelprod']}})
         htmldata = news.notifysab('fuel')
         NewsItem.objects.create(target=target, content=htmldata)
         result = 'Your team managed to sneak onto the refinery and critically damage it!'
@@ -1218,8 +1169,7 @@ def sabdur(spy, target):
     if 45 + spy.sabotage >= chance:
         spy.sabotage += 2
         spy.save(update_fields=['sabotage'])
-        target.duraniumprod = F('duraniumprod') - 3
-        target.save(update_fields=['duraniumprod'])
+        utilities.atomic_world(target.pk, {'duraniumprod': {'action': 'subtract', 'amount': v.production['duraniumprod']}})
         htmldata = news.notifysab('dur')
         NewsItem.objects.create(target=target, content=htmldata)
         result = 'Your crack team successfully bypassed security and destroyed an enemy duranium mine!'
@@ -1245,8 +1195,7 @@ def sabtrit(spy, target):
     if 45 + spy.sabotage >= chance:
         spy.sabotage += 2
         spy.save(update_fields=['sabotage'])
-        target.tritaniumprod = F('tritaniumprod') - 2
-        target.save(update_fields=['tritaniumprod'])
+        utilities.atomic_world(target.pk, {'tritaniumprod': {'action': 'subtract', 'amount': v.production['tritaniumprod']}})
         htmldata = news.notifysab('trit')
         NewsItem.objects.create(target=target, content=htmldata)
         result = 'Your crack team successfully bypassed security and blew up an enemy tritanium mine!'
@@ -1272,8 +1221,7 @@ def sabadam(spy, target):
     if 45 + spy.sabotage >= chance:
         spy.sabotage += 2
         spy.save(update_fields=['sabotage'])
-        target.adamantiumprod = F('adamantiumprod') - 1
-        target.save(update_fields=['adamantiumprod'])
+        utilities.atomic_world(target.pk, {'adamantiumprod': {'action': 'subtract', 'amount': v.production['adamantiumprod']}})
         htmldata = news.notifysab('adam')
         NewsItem.objects.create(target=target, content=htmldata)
         result = 'Your crack team successfully bypassed security and blew up an enemy adamantium mine!'

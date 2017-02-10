@@ -20,10 +20,14 @@ All news items and their effects are here.
 
 D = decimal.Decimal
 
+class testing(object):
+    def __init__(self):
+        self.a = world_news
+
 @login_required
 @world_required
-def world_news(request, world):
-
+def world_news(request):
+    world = request.user.world
     anlist = ActionNewsItem.objects.filter(target=world)
     message = None
     notask = 'No such news item!'
@@ -112,8 +116,15 @@ def world_news(request, world):
             else:
                 if actionnewsitem.target == world:
                     actionnewsitem.delete()
-                    utilities.qolchange(world, 40)
-                    utilities.contentmentchange(world, 40)
+                    contentment = utilities.attrchange(world.contentment, 40)
+                    contaction = ('set' if contentment == 100 else 'add')
+                    qol = utilities.attrchange(world.qol, 40)
+                    qolaction = ('set' if qol == 100 else 'add')
+                    actions = {
+                    'contentment': {'action': contaction, 'amount': contentment},
+                    'qol': {'action': qolaction, 'amount': qol},
+                    }
+                    utilities.atomic_world(world.pk, actions)
                     message = 'Well, aren\'t you a humanitarian?'
 
         if ("noobsecurity" in form) and (anlist.filter(actiontype=2).exists()):
@@ -125,7 +136,10 @@ def world_news(request, world):
             else:
                 if actionnewsitem.target == world:
                     actionnewsitem.delete()
-                    utilities.stabilitychange(world, 60)
+                    stab = utilities.attrchange(world.stability, 60)
+                    stabaction = ('set' if stab == 100 else 'add')
+                    actions = {'stability': {'action': stabaction, 'amount': stab}}
+                    utilities.atomic_world(world.pk, actions)
                     message = 'Your people are used to absolute obedience to your rule.'
 
         if ("noobmilitary" in form) and (anlist.filter(actiontype=2).exists()):
@@ -137,7 +151,10 @@ def world_news(request, world):
             else:
                 if actionnewsitem.target == world:
                     actionnewsitem.delete()
-                    utilities.movecomplete(world, 1, 10, world.region, 40)
+                    f = fleet.objects.filter(world=world, controller=world, sector=world.sector)[0]
+                    f.fighters += v.eventfighters
+                    f.train()
+                    f.save(update_fields=['fighters', 'training'])
                     world.warpfuelprod = F('warpfuelprod') + 10
                     world.save(update_fields=['warpfuelprod'])
                     message = 'Your warmongering world starts out with extra fighters!'
@@ -320,16 +337,23 @@ def world_news(request, world):
                     if world.budget < 250:
                         message = 'You do not have enough money for this event!'
                     elif random.randint(1,10) == 1:
-                        world.budget = F('budget') - D(250)
-                        utilities.stabilitychange(world, 10)
-                        world.save(update_fields=['budget'])
+                        stab = utilities.attrchange(world.stability, 10)
+                        actions = {
+                        'stability': {'action': 'add', 'amount': stab},
+                        'budget': {'action': 'subtract', 'amount': 250},
+                        }
+                        utilities.atomic_world(world.pk, actions)
                         message = 'The admiral accepts your payoffs and retires, extolling your <br> \
                             virtues in his retirement speech broadcast around the world.'
                     else:
-                        world.budget = F('budget') - D(250)
-                        utilities.rebelschange(world, 5)
-                        utilities.stabilitychange(world, -20)
-                        world.save(update_fields=['budget'])
+                        rebels = utilities.attrchange(world.rebels, 5, zero=True)
+                        stab = utilities.attrchange(world.stability, -20)
+                        actions = {
+                        'rebels': {'action': 'add', 'amount': rebels},
+                        'stability': {'action': 'add', 'amount': stab},
+                        'budget': {'action': 'subtract', 'amount': 250},
+                        }
+                        utilities.atomic_world(world.pk, actions)
                         message = 'The admiral takes your money and uses it to raise rebels against your rule!'
 
                     actionnewsitem.delete()
@@ -345,13 +369,18 @@ def world_news(request, world):
                     if not Spy.objects.filter(owner=world, location=world).exists():
                         message = 'You do not have a spy at home!'
                     elif random.randint(1,4) == 1:
-                        utilities.rebelschange(world, 10)
-                        utilities.stabilitychange(world, -10)
+                        rebels = utilities.attrchange(world.rebels, 10, zero=True)
+                        stab = utilities.attrchange(world.stability, -10)
+                        actions = {
+                        'rebels': {'action': 'add', 'amount': rebels},
+                        'stability': {'action': 'add', 'amount': stab},
+                        }
+                        utilities.atomic_world(world.pk, actions)
                         message = 'The admiral survives his \'accident\' and the people, <br> \
                             shocked at your methods, rise up against you.'
                     else:
-                        world.budget = F('budget') + D(500)
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'add', 'amount': 500}}
+                        utilities.atomic_world(world.pk, actions)
                         message = 'Your spy succeeds in his mission, and the people soon forget what <br> \
                             all the fuss was about. You confiscate the dead admiral\'s property.'
 
@@ -368,15 +397,15 @@ def world_news(request, world):
                 message = 'No such task!'
             else:
                 if actionnewsitem.target == world:
-                    rebelpower = 50
-                    worldpower = utilities.militarypower(world, world.region)
-                    totworldpower = utilities.powerallmodifiers(world, world.region)
-                    worldlist = utilities.regionshiplist(world, world.region)
-                    deflosses = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-                    deflosses = utilities.war_result(rebelpower, totworldpower, worldpower, worldlist)
-                    utilities.warloss_byregion(world, world.region, deflosses)
-                    losses = news.losses(deflosses)
-                    message = 'You defeated the raiders - the fleet lost %s in the engagement.' % losses
+                    #rebelpower = 50
+                    #worldpower = utilities.militarypower(world, world.region)
+                    #totworldpower = utilities.powerallmodifiers(world, world.region)
+                    #worldlist = utilities.regionshiplist(world, world.region)
+                    #deflosses = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+                    #deflosses = utilities.war_result(rebelpower, totworldpower, worldpower, worldlist)
+                    #utilities.warloss_byregion(world, world.region, deflosses)
+                    #losses = news.losses(deflosses)
+                    message = 'You defeated the raiders - the fleet lost nothing in the engagement.'
                     actionnewsitem.delete()
 
         if ("traidersbribe" in form) and (anlist.filter(actiontype=7).exists()):
@@ -390,15 +419,18 @@ def world_news(request, world):
                     if world.budget < 500:
                         message = 'You do not have enough money for this event!'
                     elif random.randint(1,10) == 1:
-                        world.budget = F('budget') - D(500)
-                        utilities.rebelschange(world, 5)
-                        world.save(update_fields=['budget'])
+                        rebels = utilities.attrchange(world.rebels, 5, zero=True)
+                        actions = {
+                        'budget': {'action': 'subtract', 'amount': 500},
+                        'rebels': {'action': 'add', 'amount': rebels}
+                        }
+                        utilities.atomic_world(world.pk, actions)
                         message = 'The raiders take your money and use it to better equip their <br> \
                             ships and mount more organised attacks in your system!'
                         actionnewsitem.delete()
                     else:
-                        world.budget = F('budget') - D(500)
-                        world.save(update_fields=['budget'])
+                        actions = {'budget': {'action': 'subtract', 'amount': 500},}
+                        utilities.atomic_world(world.pk, actions)
                         message = 'The raiders use the payoff to leave for another system.'
                         actionnewsitem.delete()
 
@@ -410,7 +442,9 @@ def world_news(request, world):
                 message = 'No such task!'
             else:
                 if actionnewsitem.target == world:
-                    utilities.rebelschange(world, 10)
+                    rebels = utilities.attrchange(world.rebels, 10, zero=True)
+                    actions = {'rebels': {'action': 'add', 'amount': rebels}}
+                    utilities.atomic_world(world.pk, actions)
                     message = 'The raiders use the lack of response to organise themselves <br> \
                         and recruit more scum for a greater presence in your system.'
                     actionnewsitem.delete()
@@ -427,9 +461,12 @@ def world_news(request, world):
             else:
                 if actionnewsitem.target == world:
                     duranium = random.randint(70,100)
-                    utilities.qolchange(world, -10)
-                    world.duranium = F('duranium') + duranium
-                    world.save(update_fields=['duranium'])
+                    qol = utilities.attrchange(world.qol, -10)
+                    actions = {
+                    'duranium': {'action': 'add', 'amount': duranium},
+                    'qol': {'action': 'add', 'amount': qol},
+                    }
+                    utilities.atomic_world(world.pk, actions)
                     message = 'You managed to extract %s duranium from the asteroid.' % duranium
                     actionnewsitem.delete()
 
@@ -458,9 +495,12 @@ def world_news(request, world):
                 message = 'No such task!'
             else:
                 if actionnewsitem.target == world:
-                    utilities.qolchange(world, -10)
-                    world.gdp = F('gdp') + 100
-                    world.save(update_fields=['gdp'])
+                    qol = utilities.attrchange(world.qol, -10)
+                    actions = {
+                    'qol': {'action': 'add', 'amount': qol},
+                    'gdp': {'action': 'add', 'amount': 100}
+                    }
+                    utilities.atomic_world(world.pk, actions)
                     message = 'Quality of life goes down somewhat from the tortured spirits hassling <br> your population, \
                         but you gain 100 GDP from all the businesses <br> that have popped up to rid them through \'auditing sessions\'.'
                     actionnewsitem.delete()

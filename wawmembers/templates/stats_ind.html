@@ -1,0 +1,581 @@
+{% extends "base.html" %}
+{% load static from staticfiles %}
+{% block extrahead %}
+  <script type="text/javascript" src="{% static "js/length.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/textcheck.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/newtrade.js" %}"></script>
+  <script type="text/javascript" src="{% static "js/jquery.collapsible.js" %}"></script>
+  <link rel="stylesheet" href="{% static "css/main.css" %}" type="text/css">
+  <style>
+    hr {
+      width:60%;
+    }
+  </style>
+{% endblock %}
+{% load lastonline %}
+{% load nextspyaction %}
+{% load mildisplay %}
+{% load filters %}
+
+{% block title %}Worlds at War - {{target.name}}{% endblock %}
+
+{% block content %}
+
+<div class="main">
+
+  <center>
+
+  {% if admin %}
+    <a href="https://wawgame.eu/admin/wawmembers/world/{{ target.pk }}">Admin</a>
+    <p class="halfline">&nbsp;</p>
+  {% endif %}
+
+  {% if atwar != None %}
+    <p class="bigger" style="color: red;">You are at WAR!</p>
+  {% endif %}
+ 
+  {% if target.rumsoddium != 0 %}
+    <p class="rumsoddium">This world has prized rumsoddium!</p>
+  {% endif %}
+
+  {% if message %}
+    <p class="message">{{ message | safe}}</p>
+  {% endif %}
+  <p class="halfline">&nbsp;</p>
+
+  {{ target.world_descriptor }}
+
+  <h1>{{ target.name }}</h1>
+
+  {% if target.donator == True %}
+    <img src="{{target.preferences.donatorflag}}" alt="Custom flag" id="displayflag">
+  {% else %}
+    <img src="{% static "avatarsnflags/"|add:target.preferences.flag|add:".gif" %}" alt="{{ target.preferences.flag }}" id="displayflag">
+  {% endif %}
+
+  <p>{{ target.world_desc | linebreaks:5 }}</p>
+
+  <br>
+
+  {% if target.donator == True %}
+    <img src="{{target.preferences.donatoravatar}}" alt="Custom avatar" id="displayavatar">
+  {% else %}
+    <img src="{% static "avatarsnflags/"|add:target.preferences.avatar|add:".gif" %}" alt="{{ target.preferences.avatar }}" id="displayavatar">
+  {% endif %}
+
+  <p class="halfline">&nbsp;</p>
+
+  {{ target.leadertitle }}:
+
+  <p class="halfline">&nbsp;</p>
+
+  <b><i class="bigger">{{ target.user.username | safe}}</i></b>
+
+  {% if target.preferences.card != 'None' %}
+    <p class="halfline">&nbsp;</p><img src="{% static "cards/"|add:target.preferences.card|add:".gif" %}" alt="Card" height="60">
+  {% endif %}
+
+  {% if target.donator == True %}
+    <p>
+      <iframe width="300" height="30" src="https://www.youtube.com/embed/{{target.donatoranthem}}?rel=0&autoplay=1"
+      frameborder="0" allowfullscreen></iframe>
+    </p>
+  {% endif %}
+
+  <p>Sector: <i>{{ target.displayregion }}</i></p>
+
+  {{ lastonline|safe }}
+
+  <h2 class="collapsible" id="domestic">Domestic</h2>
+  <div>
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Political System:</td>
+        <td><i>{{ target.displaypol }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Perception:</td>
+        <td>{{ target.displaycontentment|safe}}</td>
+      </tr>
+      <tr class="light">
+        <td>Stability:</td>
+        <td>{{ target.displaystability|safe}}</td>
+      </tr>
+      <tr class="dark">
+        <td>Rebels:</td>
+        <td>{{ target.displayrebels|safe }}</td>
+      </tr>
+      <tr class="light">
+        <td>Quality of life:</td>
+        <td>{{ target.displayqol|safe }}</td>
+      </tr>
+    </table>
+
+  </div>
+  <span id="domestic"><hr></span>
+
+  <h2 class="collapsible" id="economic">Economic</h2>
+
+  <div>
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Economic System:</td>
+        <td><i>{{ target.displayecon }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Budget:</td>
+        {% if spyintel != None %}
+          <td><i>{{ target.budget }}</i> GEU</td>
+        {% else %}
+          <td><span class="classified">CLASSIFIED</span></td>
+        {% endif %}
+      </tr>
+      <tr class="light">
+        <td>GDP:</td>
+        <td><i>{{ target.gdp }}</i> million GEU</td>
+      </tr>
+      <tr class="dark">
+        <td>Growth:</td>
+        {% if spyintel != None %}
+          <td><i>{{ target.growth }}</i> million GEU</td>
+        {% else %}
+          <td><span class="classified">CLASSIFIED</span></td>
+        {% endif %}
+      </tr>
+    </table>
+
+  </div>
+  <span id="economic"><hr></span>
+
+  <h2 class="collapsible" id="diplomacy">Diplomacy</h2>
+  <div>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Federation:</td>
+        {% if alliance != None %}
+          <td><b><i><a href="{% url 'alliances_ind' target.alliance.pk %}">{{ target.alliance }}</a></i></b></td>
+        {% else %}
+          <td><i>None</i></td>
+        {% endif %}
+      </tr>
+    </table>
+
+  </div>
+  <span id="diplomacy"><hr></span>
+
+  <h2 class="collapsible" id="military">Military</h2>
+  <div>
+
+    {% if haswars != None %}
+      <div class="warmessage">
+        <h3>Wars</h3>
+        {% if offlist %}
+          <p>Attacking: &nbsp;
+            {% for war in offlist %}
+              {{ war |worldlink }} &nbsp;
+            {% endfor %}
+          </p>
+        {% endif %}
+        {% if deflist %}
+          <p>Defending: &nbsp;
+            {% for war in deflist %}
+              {{ war |worldlink }} &nbsp;
+            {% endfor %}
+          </p>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if targetprotection != None %}
+      <span class="red">This world is in war protection.</span>
+    {% endif %}
+
+    <h3>Supplies</h3>
+    <table class="striped supplydisplay">
+      <tr class="verydark">
+        <td class="tableheader">Resource</td>
+        <td class="tableheader">Amount</td>
+        <td class="tableheader"> Production / turn</td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad">Warpfuel:</td>
+        <td class="center"><i>{{ target.warpfuel }}</i></td>
+        <td class="center"><i>{{ target.warpfuelprod }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad">Duranium:</td>
+        <td class="center"><i>{{ target.duranium }}</i></td>
+        <td class="center"><i>{{ target.duraniumprod }}</i></td>
+      </tr>
+      <tr class="light">
+        <td class="leftpad">Tritanium:</td>
+        <td class="center"><i>{{ target.tritanium }}</i></td>
+        <td class="center"><i>{{ target.tritaniumprod }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td class="leftpad">Adamantium:</td>
+        <td class="center"><i>{{ target.adamantium }}</i></td>
+        <td class="center"><i>{{ target.adamantiumprod }}</i></td>
+      </tr>
+      {% if target.rumsoddium != 0 %}
+        <tr class="light">
+          <td class="leftpad" style="color:green;">Rumsoddium:</td>
+          <td class="center" style="color:green;"><i>{{ target.rumsoddium }}</i></td>
+          <td class="center" style="color:green;">None</td>
+        </tr>
+      {% endif %}
+    </table>
+
+    <h3>General</h3>
+
+    <table class="striped leftpad">
+      <tr class="light">
+        <td>Military production level:</td>
+        <td>
+        {% if spyintel %}
+          <i>{{ millevel }}</i>
+        {% else %}
+          <span class="classified">CLASSIFIED</span>
+        {% endif %}
+        </td>
+      </tr>
+      <tr class="dark">
+        <td>Progress: </td>
+        <td>
+          {% if progress %}
+            {% if spyintel %}
+              <div class="meter"><span style="width:{{ progress }}%"></span></div>
+            {% else %}
+              <span class="classified">CLASSIFIED</span>
+            {% endif %}
+          {% else %}
+            Completed!
+          {% endif %}
+        </td>
+      </tr>
+      <tr class="light">
+        <td>Shipyards:</td>
+        <td><i>{{ target.shipyards }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Production points:</td>
+        <td>
+          {% if spyintel != None %}
+            <i>{{ target.productionpoints }}</i>
+          {% else %}
+            <span class="classified">CLASSIFIED</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr class="light">
+        <td>Freighters in use:</td>
+        <td>
+          {% if spyintel != None %}
+            <i>{{ target.freightersinuse }}</i>
+          {% else %}
+            <span class="classified">CLASSIFIED</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr class="dark">
+        <td>War points:</td>
+        <td><i>{{ target.warpoints }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>Duranium salvage:</td>
+        <td><i>{{ target.salvdur }}</i></td>
+      </tr>
+      <tr class="dark">
+        <td>Tritanium salvage:</td>
+        <td><i>{{ target.salvtrit }}</i></td>
+      </tr>
+      <tr class="light">
+        <td>Adamantium salvage:</td>
+        <td><i>{{ target.salvadam }}</i></td>
+      </tr>
+      {% if target.displaypship == None %}
+        <tr class="dark">
+          <td>Personal Ship:</td>
+          <td><i>None</i></td>
+        </tr>
+      {% endif %}
+    </table>
+
+    {% if target.displaypship != None %}
+      <p class="halfline">&nbsp;</p>
+      <h3>Personal Ship</h3>
+      <table class="striped">
+        <tr class="light">
+          <td class="leftpad">Ship type:</td>
+          <td class="leftpad"><i>{{ target.displaypship }}</i></td>
+        </tr>
+        <tr class="dark">
+          <td colspan="2" class="center nohl">
+            {% if target.donator == True %}
+              <img src="{{ target.donatorflagship }}" alt="Custom avatar" id="displayflagship" height="200px">
+            {% else %}
+              <img src="{% static "personalships/"|add:target.flagshippicture|add:".gif" %}" alt="{{ target.flagshippicture }}" id="displayflagship">
+            {% endif %}
+          </td>
+        </tr>
+        <tr class="light">
+          <td colspan="2" class="center" style="font-size:1.2em"><i><b>{{ target.flagshipname }}</b></i></td>
+        </tr>
+        <tr class="dark">
+          <td class="leftpad">Location:</td>
+          <td class="leftpad"><i>{{ shiploc }}</i></td>
+        </tr>
+      </table>
+    {% endif %}
+
+    <br>
+
+    <table style="width:90%" class="striped militarydisplay">
+      {% for sector in mildisplay %}
+        {% if forloop.counter < 2 %}
+          <tr class="verydark">
+        {% else %}
+          <tr class="{% cycle 'light' 'dark' %}">
+        {% endif %}
+        {% if forloop.counter < 2 %}
+          <td class="hidden nohl"></td>
+        {% endif %}
+        {% for data in sector %}
+        {% if forloop.parentloop.counter == 1 %}
+          <td class="center"><b>{{ data|safe|capfirst }}</b></td>
+        {% elif forloop.counter == 1 %}
+          <td class="leftpad">{{ data|safe|capfirst }}</td>
+        {% else %}
+          <td class="center">{{ data|safe|capfirst }}</td>
+        {% endif %}
+        {% endfor %}
+        </tr>
+      {% endfor %} 
+    </table>
+
+  </div>
+  <span id="military"><hr></span>
+  {% if displayactions %}
+    <form action="" method="post">{% csrf_token %}
+      <p class="halfline">&nbsp;</p>
+      <p class="bigger">Communique:</p>
+      <span style="font-size:0.8em">Insert <b>[br]</b> for up to 5 line-breaks in your comms.</span>
+      <p class="halfline">&nbsp;</p>
+      <form action="" method="post">{% csrf_token %}
+        <textarea name="comm" id="comm" rows="4" cols="50" class="countable textcheck" maxlength="500"></textarea>
+        <p class="vsmallline">&nbsp;</p>
+        <span id="commstatus"></span>
+        <span id="textcheckstatus"></span>
+        <p class="halfline">&nbsp;</p>
+        <input type="submit" name="sendcomm" value="Send comm" class="button"/>
+      </form>
+    </form>
+
+    {% if atwar == None %}
+
+      <p class="halfline">&nbsp;</p>
+      <p class="bigger">Declare War:</p>
+
+      {% if warprotection != None %}
+        <span style="color:red;">Warning: you are under protection! If you declare war, your protection will end.</span>
+        <p class="halfline">&nbsp;</p>
+      {% endif %}
+
+      {% if gdpprotection != None %}
+        <span style="color:red;">Warning: this world is out of your GDP range.<br>
+          You may attack it, but then worlds of any GDP will be able to retaliate for one week.</span>
+        <p class="halfline">&nbsp;</p>
+      {% endif %}
+
+      <form action="" method="post" id="actions">{% csrf_token %}
+        Reason: <input type="text" name="warreason" value="I don't like you" id="warreason" class="countable" maxlength="20">
+        <p class="vsmallline">&nbsp;</p>
+        <span id="warreasonstatus"></span>
+        <p class="halfline">&nbsp;</p>
+        <input type="submit" name="wardec" value="Declare War!" class="redbutton"/>
+      </form>
+
+    {% else %}
+    <p class="halfline">&nbsp;</p>
+    <p class="bigger">You are at WAR!</p>
+     {% if attackforms %}
+     <center>
+     <div class="attackcontainer">
+      {% for form in attackforms %}
+      <div style="display: inline-block; width: 25%">
+        <form action="" method="post">{% csrf_token %}
+          {{ form.form.fleets }}
+          <br>
+          <button type="submit" name="attack" value="{{ form.sector }}" class="redbutton"/>
+            Attack in {{ form.sector }}
+          </button>
+          <p class="halfline">&nbsp;</p>
+
+          Cost: {{ form.warfuelcost }} warpfuel
+
+          <p class="halfline">&nbsp;</p>
+
+          <p class="bigger">Supply Raid</p>
+            Attempt to sabotage your enemy's supply lines.
+          <p class="halfline">&nbsp;</p>
+            <input type="submit" name="raid" value="Raid" class="button"/>
+          <p class="halfline">&nbsp;</p>
+
+        Cost: {{ form.raidcost }} warpfuel
+      </form>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p>We have no fleets in sectors where the enemy is!</p>
+      {% endif %}
+      </div>
+      <form action="" method="post">{% csrf_token %}
+        <p class="halfline">&nbsp;</p>
+
+        <p class="bigger">Offer Peace</p>
+        {% if peaceoffer == None %}
+          <button type="submit" name="peace" value="offerpeace" class="button">
+            Offer peace
+          </button>
+        {% else %}
+          You have offered peace! Do you wish to withdraw your offer?
+          <p class="halfline">&nbsp;</p>
+          <button type="submit" name="peace" value="revokepeace" class="button">
+            Revoke peace
+          </button>
+        {% endif %}
+
+      </form>
+
+    {% endif %}
+
+    <form action="" method="post">{% csrf_token %}
+
+      {% if spyintarget != None %}
+        <p class="halfline">&nbsp;</p>
+        <p class="bigger">Spy Actions</p>
+        {% nextspyaction spyintarget %}
+        {% if timeforintel != None %}<br>{{ timeforintel }}{% endif %}
+        <p>Run a propaganda campaign to foment anger and discontent amongst the people. Cost: 250 GEU</p>
+        <input type="submit" name="propaganda" value="Propaganda" class="button"/>
+        <p>Organise a transfer of tech to the malcontents of this world and they will rebel! Cost: 1000 GEU of tech</p>
+        <input type="submit" name="gunrun" value="Transfer Tech" class="button"/>
+        <p>Tap economic and military installations to obtain details about budget and military progress. Cost: 200 GEU</p>
+        <input type="submit" name="intel" value="Gather Intel" class="button"/>
+        <p>Put together a crack team to sabotage a military or economic installation. Cost: 2000 GEU</p>
+        <input type="submit" name="sabyard" value="Shipyard" class="button"/>&nbsp;
+        <input type="submit" name="sabfuel" value="Fuel Refinery" class="button"/>&nbsp;
+        <input type="submit" name="sabdur" value="Duranium Mine" class="button"/>&nbsp;
+        <input type="submit" name="sabtrit" value="Tritanium Mine" class="button"/>&nbsp;
+        <input type="submit" name="sabadam" value="Adamantium Mine" class="button"/>&nbsp;
+        <input type="submit" name="sabhangars" value="Hangars" class="button"/>
+        <p>Withdraw your spy from this world.</p>
+        <input type="submit" name="withdraw" value="Withdraw" class="redbutton"/>
+      {% else %}
+        {% if nospies == None %}
+          <p class="halfline">&nbsp;</p>
+          <p class="bigger">Infiltrate Spy</p>
+          <p class="halfline">&nbsp;</p>
+          <div class="nopara">
+            {{ spyform.spyselect.label_tag }} {{ spyform.spyselect }} &nbsp;
+            <input type="submit" name="infiltrate" value="Infiltrate" class="button"/>
+          </div>
+        {% endif %}
+      {% endif %}
+
+    </form>
+
+    <p class="halfline">&nbsp;</p>
+    {% if costforgeuaid != None %}
+      <p class="bigger">Send aid (5% for GEU):</p>
+    {% else %}
+      <p class="bigger">Send aid (No cost for GEU):</p>
+    {% endif %}
+
+    {% if warprotection != None %}
+      <span style="color:red;">Warning: you are under protection! If you send ships, your protection will end.</span>
+      <p class="halfline">&nbsp;</p>
+    {% endif %}
+
+    {% if indefwar != None %}
+      <span style="color:red;">Warning: you are in a defensive war! If you send ships, you will suffer approval and stability losses.</span>
+      <p class="halfline">&nbsp;</p>
+    {% endif %}
+
+    <form action="" method="post">{% csrf_token %}
+      <table>
+        {{ aidform }}
+      </table>
+      <p class="halfline">&nbsp;</p>
+      <span id="resstat"></span>
+      <span id="amountstat"></span>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="directaid" value="Send aid" class="button">
+    </form>
+ <p class="halfline">&nbsp;</p>
+    <form action="" method="post">{% csrf_token %}
+      <table>
+        {{ shipaid }}
+      </table>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="shipaid" value="Send ships" class="button">
+    </form>
+    <p class="halfline">&nbsp;</p>
+    <form action="" method="post">{% csrf_token %}
+      <table>
+        {{ aidfleet }}
+      </table>
+      <p class="halfline">&nbsp;</p>
+      <input type="submit" name="fleetaid" value="Send fleet" class="button">
+    </form>
+
+    
+
+
+  {% endif %}
+
+</div>
+
+<span style="display:none;" id="prefs">{{ defaultopen }}</span>
+
+<script>
+$(document).ready(function() {
+  $('.collapsible').collapsible({
+    defaultOpen: '{{ defaultopen }}'
+  });
+
+  function showline(element){
+    var id = $(element).attr('id');
+    if ( $(element).collapsible('collapsed') ) {
+      setTimeout(function(){
+        $('span#'+id).css('display','inline');
+      },500);
+    }
+    else {
+      setTimeout(function(){
+        $('span#'+id).css('display','none');
+      },500);
+    }
+  }
+
+  $('.collapsible').click(function() {
+    showline(this);
+  });
+  var prefs = $('#prefs').html();
+  var array = prefs.split(',');
+  for (var id in array) {
+    showline($('.collapsible#'+array[id]));
+  }
+
+  $("#actions").submit(function(event) {
+    if(!confirm("Are you sure you want to declare war?")) {
+      event.preventDefault();
+    }
+  });
+
+});
+</script>
+
+{% endblock %}
+

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load filters %}
+{% block extrahead %}
+  <style>
+    td {
+      text-align: center;
+      margin-bottom: 5px;
+    }
+    td img {
+      max-height: 75px;
+    }
+  </style>
+{% endblock %}
+
+{% block title %}Worlds at War - Federations{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h1>The Federations</h1>
+
+  {% for page in pages %}
+    <a href="{% url 'alliancespage' page %}"{% if current == page %} style="color:green;"{% endif %}>{{ page }}</a>
+    {% if not forloop.last %},{% endif %}
+  {% endfor %}
+
+  <p class="halfline">&nbsp;</p>
+
+  <table style="width:80%">
+    <tr>
+      <th>Flag</th><th>Federation Name</th><th>Leader</th><th>Membership</th>
+    </tr>
+    {% for alliance in alliances %}
+      <tr>
+        <td><img src="{{ alliance.data.alliance_flag }}" alt="Custom flag"></td>
+        <td><b><a href="{% url 'alliances_ind' alliance.data.pk %}">{{ alliance.data.alliance_name }}</a></b></td>
+        <td><b>{{ alliance.leader |worldlink }}</b></td>
+        <td><i>{{ alliance.count }}</i></td>
+      </tr>
+    {% endfor %}
+  </table>
+
+  <p class="halfline">&nbsp;</p>
+
+  {% for page in pages %}
+    <a href="{% url 'alliancespage' page %}" {% if current == page %}style="color:green;"{% endif %}>{{ page }}</a>
+    {% if not forloop.last %},{% endif %}
+  {% endfor %}
+
+</center>
+
+{% endblock %}

@@ -17,8 +17,10 @@ def buildfreighter(amount):
 
 
 def buildship(shiptype, amount):
-    name = utilities.resname(shiptype+10, amount, lower=True)
-    return 'Your %s %s will be ready in' % (amount, name)
+    if amount > 1:
+        return '%s %s are being built and will be delivered in:' % (amount, shiptype)
+    else:
+        return '%s %s is being built and will be delivered in:' % (amount, shiptype)
 
 
 def buildpersonalship(shiptype):
@@ -26,17 +28,20 @@ def buildpersonalship(shiptype):
     return 'Your %s will be ready in' % name
 
 
-def moveship(shiptype, amount, regionfrom, regionto):
+def warpfleet(fleetname, regionfrom, regionto):
 
-    shipname = utilities.resname(shiptype+10, amount, lower=True)
+    toreturn = 'Your fleet %s will warp from %s to %s in' \
+        % (fleetname, regionfrom, regionto)
 
-    fromname = display.region_display(regionfrom)
-    toname = display.region_display(regionto)
+    return toreturn
 
-    toreturn = 'Your %(amount)s %(ship)s will warp from %(from)s to %(to)s in' \
-        % {'amount':amount, 'ship':shipname, 'from':fromname, 'to':toname}
+def recallfleet(fleetname, worldname, sector):
+    return "Your fleet %s has been recalled from %s and will arrive in %s in" % (
+        fleetname, worldname, sector)
 
-    return toreturn, shipname
+def sendbackfleet(fleetname, worldname, sector):
+    return "%s has sent back fleet %s. It will arrive in %s in" % (
+        worldname, fleetname, sector)
 
 
 def movepersonalship(regionfrom, regionto):
@@ -72,25 +77,25 @@ def mothball(shiptype, amount, direction):
     return message, shipname
 
 
-def directaidarrival(world, resname, amount):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-    fullworld = '<a href="%(link)s">%(world)s</a>' % {'link':linkworld,'world':world.world_name}
+def directaidarrival(world, resources):
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    resource_text = utilities.resource_text(resources)
+    return 'We are being sent %s by %s! The shipment will arrive in' \
+        % (resource_text, fullworld)
 
-    return 'We are being sent %(amount)s %(name)s by %(world)s! The shipment will arrive in' \
-        % {'amount':amount, 'name':resname, 'world':fullworld}
+def shipaidarrival(world, ship, amount):
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
+    return 'We are being sent %s %s by %s! The shipment will arrive in' \
+        % (amount, ship, fullworld)
 
 
 def tradeaccepterarrival(world, resname, amount):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-    fullworld = '<a href="%(link)s">%(world)s</a>' % {'link':linkworld,'world':world.world_name}
-
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
     return 'The %(amount)s %(name)s from our trade with %(world)s will arrive in' \
         % {'amount':amount, 'name':resname, 'world':fullworld}
 
 
 def tradeownerarrival(world, resname, amount):
-    linkworld = reverse('stats_ind', args=(world.worldid,))
-    fullworld = '<a href="%(link)s">%(world)s</a>' % {'link':linkworld,'world':world.world_name}
-
+    fullworld = '<a href="%s">%s</a>' % (world.get_absolute_url(), world.name)
     return '%(world)s has accepted our trade! The %(amount)s %(name)s will arrive in' \
         % {'amount':amount, 'name':resname, 'world':fullworld}

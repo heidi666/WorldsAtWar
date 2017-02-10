@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load filters %}
+
+{% block title %}Worlds at War - {{ alliance.alliance_name }} Bank Logs{% endblock %}
+
+{% block content %}
+
+<center>
+
+  <h2>{{ alliance.alliance_name }}</h2>
+  <h3>Bank Logs</h3>
+
+  <p><a href="{% url 'alliances_ind' alliance.pk %}">Return</a></p>
+
+  {% if loglist %}
+
+    <table style="width:90%" class="bordered log">
+      <tr>
+        <th>Date + Time</th><th>World</th><th>Action</th><th>Before</th><th>After</th>
+      </tr>
+      {% for log in loglist %}
+        <tr>
+          <td class="center">{{ log.datetime | date:"jS N" }}, {{ log.datetime | time:"H:i:s" }}</td>
+          <td class="center">{{ log.world.pk |worldlink }}</td>
+          <td class="center">
+            {% if log.action == True %}deposited <span style="color:green;">{{ log.amount }}</span>
+            {% else %}withdrew <span style="color:red;">{{ log.amount }}</span>{% endif %} GEU
+          </td>
+          <td class="center"> {{log.before}} </td>
+          <td class="center"> {{log.after}} </td>
+        </tr>
+      {% endfor %}
+    </table>
+
+  {% else %}
+
+    You have no bank logs!
+
+  {% endif %}
+
+</center>
+
+{% endblock %}
+
